@@ -1,0 +1,64 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "v1_identity_hash",
+    "entities": [
+      {
+        "tableName": "recipes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL DEFAULT '', `stepsJson` TEXT NOT NULL DEFAULT '[]', `cookingMinutes` INTEGER NOT NULL DEFAULT 0, `difficulty` INTEGER NOT NULL DEFAULT 1, `category` TEXT NOT NULL DEFAULT '', `coverImagePath` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL)",
+        "fields": [
+          {"fieldPath": "id", "columnName": "id", "affinity": "INTEGER", "notNull": true},
+          {"fieldPath": "name", "columnName": "name", "affinity": "TEXT", "notNull": true},
+          {"fieldPath": "description", "columnName": "description", "affinity": "TEXT", "notNull": true, "defaultValue": "''"},
+          {"fieldPath": "stepsJson", "columnName": "stepsJson", "affinity": "TEXT", "notNull": true, "defaultValue": "'[]'"},
+          {"fieldPath": "cookingMinutes", "columnName": "cookingMinutes", "affinity": "INTEGER", "notNull": true, "defaultValue": "0"},
+          {"fieldPath": "difficulty", "columnName": "difficulty", "affinity": "INTEGER", "notNull": true, "defaultValue": "1"},
+          {"fieldPath": "category", "columnName": "category", "affinity": "TEXT", "notNull": true, "defaultValue": "''"},
+          {"fieldPath": "coverImagePath", "columnName": "coverImagePath", "affinity": "TEXT", "notNull": false},
+          {"fieldPath": "createdAt", "columnName": "createdAt", "affinity": "INTEGER", "notNull": true},
+          {"fieldPath": "updatedAt", "columnName": "updatedAt", "affinity": "INTEGER", "notNull": true}
+        ],
+        "primaryKey": {"autoGenerate": true, "columnNames": ["id"]},
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "family_members",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `colorHex` TEXT NOT NULL DEFAULT '#FF6B6B', `note` TEXT NOT NULL DEFAULT '')",
+        "fields": [
+          {"fieldPath": "id", "columnName": "id", "affinity": "INTEGER", "notNull": true},
+          {"fieldPath": "name", "columnName": "name", "affinity": "TEXT", "notNull": true},
+          {"fieldPath": "colorHex", "columnName": "colorHex", "affinity": "TEXT", "notNull": true, "defaultValue": "'#FF6B6B'"},
+          {"fieldPath": "note", "columnName": "note", "affinity": "TEXT", "notNull": true, "defaultValue": "''"}
+        ],
+        "primaryKey": {"autoGenerate": true, "columnNames": ["id"]},
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "recipe_preferences",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`recipeId` INTEGER NOT NULL, `memberId` INTEGER NOT NULL, `preference` TEXT NOT NULL DEFAULT 'NEUTRAL', `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`recipeId`, `memberId`), FOREIGN KEY(`recipeId`) REFERENCES `recipes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, FOREIGN KEY(`memberId`) REFERENCES `family_members`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)",
+        "fields": [
+          {"fieldPath": "recipeId", "columnName": "recipeId", "affinity": "INTEGER", "notNull": true},
+          {"fieldPath": "memberId", "columnName": "memberId", "affinity": "INTEGER", "notNull": true},
+          {"fieldPath": "preference", "columnName": "preference", "affinity": "TEXT", "notNull": true, "defaultValue": "'NEUTRAL'"},
+          {"fieldPath": "updatedAt", "columnName": "updatedAt", "affinity": "INTEGER", "notNull": true}
+        ],
+        "primaryKey": {"autoGenerate": false, "columnNames": ["recipeId", "memberId"]},
+        "indices": [
+          {"name": "index_recipe_preferences_memberId", "unique": false, "columnNames": ["memberId"], "orders": [], "createSql": "CREATE INDEX IF NOT EXISTS `index_recipe_preferences_memberId` ON `${TABLE_NAME}` (`memberId`)"}
+        ],
+        "foreignKeys": [
+          {"table": "recipes", "onDelete": "CASCADE", "onUpdate": "NO ACTION", "columns": ["recipeId"], "referencedColumns": ["id"]},
+          {"table": "family_members", "onDelete": "CASCADE", "onUpdate": "NO ACTION", "columns": ["memberId"], "referencedColumns": ["id"]}
+        ]
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'v1_identity_hash')"
+    ]
+  }
+}
