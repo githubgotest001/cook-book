@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.familyrecipe.book.data.model.Recipe
 import com.familyrecipe.book.data.model.RecipeCategory
+import com.familyrecipe.book.data.model.RecipeIngredient
 import com.familyrecipe.book.data.repository.RecipeRepository
 import com.familyrecipe.book.util.ImageUtils
 import com.google.gson.Gson
@@ -15,6 +16,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -23,15 +25,23 @@ data class RecipeEditUiState(
     val name: String = "",
     val description: String = "",
     val steps: List<String> = listOf(""),
-    val cookingMinutes: String = "",
-    val difficulty: Int = 3,
-    val category: String = "",
+    val cookingMinutes: String = "15",
+    val difficulty: Int = 2,
+    val category: String = RecipeCategory.STIR_FRY.name,
     val coverImagePath: String? = null,
-    val recommendationIndex: Int = 3,
-    val selectedCategory: RecipeCategory? = null,
+    val recommendationIndex: Int = 4,
+    val ingredients: List<IngredientInput> = listOf(IngredientInput()),
+    val selectedCategory: RecipeCategory? = RecipeCategory.STIR_FRY,
     val categoryError: Boolean = false,
     val isLoading: Boolean = false,
     val isEditMode: Boolean = false
+)
+
+data class IngredientInput(
+    val name: String = "",
+    val amount: String = "1",
+    val unit: String = "个",
+    val note: String = ""
 )
 
 @HiltViewModel
@@ -59,6 +69,7 @@ class RecipeEditViewModel @Inject constructor(
                     } catch (e: Exception) {
                         listOf(recipe.stepsJson)
                     }
+                    val ingredients = repository.getIngredientsForRecipe(recipeId).first()
                     _uiState.update {
                         it.copy(
                             name = recipe.name,
@@ -69,6 +80,14 @@ class RecipeEditViewModel @Inject constructor(
                             category = recipe.category,
                             coverImagePath = recipe.coverImagePath,
                             recommendationIndex = recipe.recommendationIndex,
+                            ingredients = ingredients.map {
+                                IngredientInput(
+                                    name = it.name,
+                                    amount = it.amount,
+                                    unit = it.unit,
+                                    note = it.note
+                                )
+                            }.ifEmpty { listOf(IngredientInput()) },
                             selectedCategory = recipe.recipeCategory,
                             isLoading = false
                         )
@@ -137,6 +156,44 @@ class RecipeEditViewModel @Inject constructor(
         _uiState.update { it.copy(recommendationIndex = clampedIndex) }
     }
 
+    fun onIngredientNameChange(index: Int, value: String) {
+        updateIngredient(index) { it.copy(name = value) }
+    }
+
+    fun onIngredientAmountChange(index: Int, value: String) {
+        updateIngredient(index) { it.copy(amount = value) }
+    }
+
+    fun onIngredientUnitChange(index: Int, value: String) {
+        updateIngredient(index) { it.copy(unit = value) }
+    }
+
+    fun onIngredientNoteChange(index: Int, value: String) {
+        updateIngredient(index) { it.copy(note = value) }
+    }
+
+    fun addIngredient() {
+        _uiState.update { it.copy(ingredients = it.ingredients + IngredientInput()) }
+    }
+
+    fun removeIngredient(index: Int) {
+        _uiState.update {
+            if (it.ingredients.size > 1) {
+                it.copy(ingredients = it.ingredients.toMutableList().apply { removeAt(index) })
+            } else {
+                it.copy(ingredients = listOf(IngredientInput()))
+            }
+        }
+    }
+
+    private fun updateIngredient(index: Int, transform: (IngredientInput) -> IngredientInput) {
+        _uiState.update {
+            val ingredients = it.ingredients.toMutableList()
+            ingredients[index] = transform(ingredients[index])
+            it.copy(ingredients = ingredients)
+        }
+    }
+
     fun onStepChange(index: Int, value: String) {
         _uiState.update {
             val newSteps = it.steps.toMutableList()
@@ -173,10 +230,22 @@ class RecipeEditViewModel @Inject constructor(
             val stepsJson = gson.toJson(state.steps.filter { it.isNotBlank() })
             val minutes = state.cookingMinutes.toIntOrNull() ?: 0
             val now = System.currentTimeMillis()
+            val ingredients = state.ingredients
+                .filter { it.name.isNotBlank() }
+                .mapIndexed { index, ingredient ->
+                    RecipeIngredient(
+                        recipeId = recipeId,
+                        name = ingredient.name,
+                        amount = ingredient.amount,
+                        unit = ingredient.unit,
+                        note = ingredient.note,
+                        displayOrder = index
+                    )
+                }
 
             if (recipeId > 0) {
                 val existing = repository.getRecipeById(recipeId) ?: return@launch
-                repository.updateRecipe(
+                repository.saveRecipeWithIngredients(
                     existing.copy(
                         name = state.name,
                         description = state.description,
@@ -187,10 +256,11 @@ class RecipeEditViewModel @Inject constructor(
                         coverImagePath = state.coverImagePath,
                         recommendationIndex = state.recommendationIndex,
                         updatedAt = now
-                    )
+                    ),
+                    ingredients
                 )
             } else {
-                repository.insertRecipe(
+                repository.saveRecipeWithIngredients(
                     Recipe(
                         name = state.name,
                         description = state.description,
@@ -202,7 +272,8 @@ class RecipeEditViewModel @Inject constructor(
                         recommendationIndex = state.recommendationIndex,
                         createdAt = now,
                         updatedAt = now
-                    )
+                    ),
+                    ingredients
                 )
             }
             onDone()

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.familyrecipe.book.data.model.FamilyMember
 import com.familyrecipe.book.data.model.Preference
 import com.familyrecipe.book.data.model.Recipe
+import com.familyrecipe.book.data.model.RecipeIngredient
 import com.familyrecipe.book.data.model.RecipePreference
 import com.familyrecipe.book.data.repository.FamilyMemberRepository
 import com.familyrecipe.book.data.repository.RecipeRepository
@@ -19,6 +20,7 @@ import javax.inject.Inject
 data class RecipeDetailUiState(
     val recipe: Recipe? = null,
     val steps: List<String> = emptyList(),
+    val ingredients: List<RecipeIngredient> = emptyList(),
     val members: List<FamilyMember> = emptyList(),
     val preferences: List<RecipePreference> = emptyList(),
     val isLoading: Boolean = true
@@ -65,6 +67,12 @@ class RecipeDetailViewModel @Inject constructor(
         viewModelScope.launch {
             recipeRepository.getPreferencesForRecipe(recipeId).collect { prefs ->
                 _uiState.update { it.copy(preferences = prefs) }
+            }
+        }
+
+        viewModelScope.launch {
+            recipeRepository.getIngredientsForRecipe(recipeId).collect { ingredients ->
+                _uiState.update { it.copy(ingredients = ingredients) }
             }
         }
     }

@@ -4,9 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import com.familyrecipe.book.data.dao.FamilyMemberDao
 import com.familyrecipe.book.data.dao.RecipeDao
+import com.familyrecipe.book.data.dao.RecipeIngredientDao
 import com.familyrecipe.book.data.dao.RecipePreferenceDao
 import com.familyrecipe.book.data.database.AppDatabase
-import com.familyrecipe.book.data.database.Migration_1_2
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -25,8 +25,7 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
-        ).addMigrations(Migration_1_2)
-            .build()
+        ).build()
     }
 
     @Provides
@@ -37,4 +36,7 @@ object DatabaseModule {
 
     @Provides
     fun provideRecipePreferenceDao(db: AppDatabase): RecipePreferenceDao = db.recipePreferenceDao()
+
+    @Provides
+    fun provideRecipeIngredientDao(db: AppDatabase): RecipeIngredientDao = db.recipeIngredientDao()
 }

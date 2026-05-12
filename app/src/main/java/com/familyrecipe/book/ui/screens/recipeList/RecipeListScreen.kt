@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -45,6 +46,7 @@ fun RecipeListScreen(
     onAddClick: () -> Unit,
     onMembersClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onShoppingListClick: () -> Unit,
     onRandomPickClick: () -> Unit,
     viewModel: RecipeListViewModel = hiltViewModel()
 ) {
@@ -58,6 +60,9 @@ fun RecipeListScreen(
                     // "今天吃什么"随机选菜按钮
                     IconButton(onClick = onRandomPickClick) {
                         Icon(Icons.Default.Casino, contentDescription = "今天吃什么")
+                    }
+                    IconButton(onClick = onShoppingListClick) {
+                        Icon(Icons.Default.ShoppingCart, contentDescription = "购物清单")
                     }
                     IconButton(onClick = onMembersClick) {
                         Icon(Icons.Default.People, contentDescription = "家庭成员")

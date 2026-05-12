@@ -8,6 +8,7 @@ object NavRoutes {
     const val MEMBER_EDIT = "member_edit/{memberId}" // memberId=0 表示新增
     const val SETTINGS = "settings"
     const val RANDOM_PICK = "random_pick"
+    const val SHOPPING_LIST = "shopping_list"
 
     fun recipeDetail(id: Long) = "recipe_detail/$id"
     fun recipeEdit(id: Long = 0) = "recipe_edit/$id"

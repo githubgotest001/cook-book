@@ -1,6 +1,7 @@
 package com.familyrecipe.book.data.repository
 
 import com.familyrecipe.book.data.dao.RecipeDao
+import com.familyrecipe.book.data.dao.RecipeIngredientDao
 import com.familyrecipe.book.data.dao.RecipePreferenceDao
 import com.familyrecipe.book.data.model.Preference
 import com.familyrecipe.book.data.model.Recipe
@@ -22,13 +23,15 @@ class RecipeRepositoryTest {
 
     private lateinit var recipeDao: RecipeDao
     private lateinit var preferenceDao: RecipePreferenceDao
+    private lateinit var ingredientDao: RecipeIngredientDao
     private lateinit var repository: RecipeRepository
 
     @Before
     fun setup() {
         recipeDao = mockk(relaxed = true)
         preferenceDao = mockk(relaxed = true)
-        repository = RecipeRepository(recipeDao, preferenceDao)
+        ingredientDao = mockk(relaxed = true)
+        repository = RecipeRepository(recipeDao, preferenceDao, ingredientDao)
     }
 
     // ===== 插入操作 =====

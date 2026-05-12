@@ -1,12 +1,13 @@
 # 家庭菜谱 (Family Recipe Book)
 
-一款面向家庭使用的 Android 菜谱管理应用，帮助你记录拿手菜的做法，并标记每位家人的口味偏好。
+一款面向家庭使用的 Android 菜谱管理应用，帮助你记录拿手菜的做法、家人的口味偏好、食材明细，并在做饭前快速生成购物清单。
 
 ## 功能介绍
 
 ### 菜谱管理
 - 创建、编辑、删除菜谱
 - 记录菜名、简介、分步骤做法、烹饪时间、难度（1-5 星）、分类
+- 记录每道菜的食材、数量、单位和备注
 - 封面图片支持（相册选择/相机拍摄，自动缩放至 1920px 内保存）
 - 推荐指数评分（1-5 星）
 
@@ -34,6 +35,12 @@
 - 支持自定义单次数量
 - "换一批"重新随机
 - 菜谱不足时友好提示
+
+### 食材与购物清单
+- 在菜谱编辑页维护食材清单
+- 在菜谱详情页查看食材明细
+- 从首页进入购物清单页面，勾选多道菜谱后自动合并食材
+- 合并时保留数量、单位、备注和来源菜谱，便于采购前核对
 
 ### 家庭成员
 - 添加家庭成员，设置姓名、代表色、备注（如忌口信息）
@@ -78,16 +85,17 @@ app/src/main/java/com/familyrecipe/book/
 │   ├── model/                      # 数据实体 (Room Entity)
 │   │   ├── Recipe.kt               # 菜谱（含推荐指数、收藏标记）
 │   │   ├── RecipeCategory.kt       # 菜谱分类枚举
+│   │   ├── RecipeIngredient.kt     # 菜谱食材
 │   │   ├── SortConfig.kt           # 排序/筛选数据模型
 │   │   ├── FamilyMember.kt         # 家庭成员
 │   │   └── RecipePreference.kt     # 喜好关联（多对多）
 │   ├── dao/                        # 数据访问对象 (Room DAO)
 │   │   ├── RecipeDao.kt
 │   │   ├── FamilyMemberDao.kt
-│   │   └── RecipePreferenceDao.kt
+│   │   ├── RecipePreferenceDao.kt
+│   │   └── RecipeIngredientDao.kt
 │   ├── database/
-│   │   ├── AppDatabase.kt          # Room 数据库定义 (v2)
-│   │   └── Migration_1_2.kt        # v1→v2 迁移
+│   │   └── AppDatabase.kt          # Room 数据库定义
 │   ├── datastore/
 │   │   └── SettingsStore.kt        # DataStore 设置存储
 │   └── repository/                 # 数据仓库层
@@ -115,6 +123,7 @@ app/src/main/java/com/familyrecipe/book/
         ├── recipeDetail/           # 菜谱详情 + 喜好打标 + 收藏
         ├── recipeEdit/             # 菜谱新增/编辑 + 图片 + 分类 + 评分
         ├── randomPick/             # 随机选菜页面
+        ├── shoppingList/           # 购物清单生成页面
         ├── memberList/             # 家庭成员列表
         ├── memberEdit/             # 成员新增/编辑
         └── settings/               # 设置：随机数量/备份/恢复/关于
@@ -136,6 +145,9 @@ RecipeCategory (分类枚举)
   STIR_FRY(炒菜), SOUP(煲汤), QUICK_MEAL(速食),
   STAPLE(主食), COLD_DISH(凉菜), DESSERT(甜品),
   BEVERAGE(饮品), OTHER(其他)
+
+RecipeIngredient (菜谱食材)
+  id, recipeId, name, amount, unit, note, displayOrder
 
 FamilyMember (家庭成员)
   id, name, colorHex(代表色), note
@@ -261,6 +273,9 @@ android {
 # 运行单元测试
 ./gradlew test
 
+# 编译 Android 仪器测试 APK（不需要连接设备）
+./gradlew assembleDebugAndroidTest
+
 # 运行 Android 仪器测试（需要连接设备/模拟器）
 ./gradlew connectedAndroidTest
 ```
@@ -268,7 +283,6 @@ android {
 测试覆盖：
 - RecipeRepository 单元测试（MockK）
 - RandomSelector 单元测试（Kotest）
-- 数据库迁移测试（MigrationTestHelper）
 
 ## 备份与恢复说明
 
@@ -283,33 +297,11 @@ android {
 
 建议将备份文件保存到云盘同步目录（如 OneDrive、Google Drive），这样换机或重装时随时可恢复。
 
-## 版本历史
+## 后续规划
 
-### v2.0（当前）
-- 架构升级：Hilt DI 替代手动 AppContainer
-- 菜谱封面图片（相册/相机）
-- 菜谱分类枚举化（8 种预定义分类）
-- 推荐指数评分（1-5 星）
-- 按家庭成员偏好筛选
-- 多维排序（5 种维度 + 升降序）
-- 收藏置顶
-- 随机选菜功能
-- 自定义应用图标
-- DataStore 设置存储
-- Room 数据库迁移（v1→v2）
-- 单元测试基础设施
-
-### v1.0
-- 基础菜谱 CRUD
-- 家庭成员管理
-- 口味偏好打标
-- 文本搜索
-- 数据备份与恢复
-
-## 后续规划 (V3)
-
-- [ ] 食材清单 + 一键生成购物清单
-- [ ] 菜单规划（日历视图）
+- [ ] 菜单规划（日历/周视图）
+- [ ] 从随机选菜结果一键加入菜单计划
+- [ ] 基于最近已吃记录优化随机推荐
 - [ ] 步骤配图
 - [ ] 自动定时备份
 - [ ] 深色模式

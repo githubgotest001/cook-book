@@ -13,6 +13,7 @@ import com.familyrecipe.book.ui.screens.recipeEdit.RecipeEditScreen
 import com.familyrecipe.book.ui.screens.randomPick.RandomPickScreen
 import com.familyrecipe.book.ui.screens.recipeList.RecipeListScreen
 import com.familyrecipe.book.ui.screens.settings.SettingsScreen
+import com.familyrecipe.book.ui.screens.shoppingList.ShoppingListScreen
 
 @Composable
 fun AppNavGraph(navController: NavHostController) {
@@ -24,6 +25,7 @@ fun AppNavGraph(navController: NavHostController) {
                 onAddClick = { navController.navigate(NavRoutes.recipeEdit(0)) },
                 onMembersClick = { navController.navigate(NavRoutes.MEMBER_LIST) },
                 onSettingsClick = { navController.navigate(NavRoutes.SETTINGS) },
+                onShoppingListClick = { navController.navigate(NavRoutes.SHOPPING_LIST) },
                 onRandomPickClick = { navController.navigate(NavRoutes.RANDOM_PICK) }
             )
         }
@@ -76,6 +78,10 @@ fun AppNavGraph(navController: NavHostController) {
                 onRecipeClick = { id -> navController.navigate(NavRoutes.recipeDetail(id)) },
                 onBack = { navController.popBackStack() }
             )
+        }
+
+        composable(NavRoutes.SHOPPING_LIST) {
+            ShoppingListScreen(onBack = { navController.popBackStack() })
         }
     }
 }

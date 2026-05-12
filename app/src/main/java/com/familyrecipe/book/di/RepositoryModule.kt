@@ -2,6 +2,7 @@ package com.familyrecipe.book.di
 
 import com.familyrecipe.book.data.dao.FamilyMemberDao
 import com.familyrecipe.book.data.dao.RecipeDao
+import com.familyrecipe.book.data.dao.RecipeIngredientDao
 import com.familyrecipe.book.data.dao.RecipePreferenceDao
 import com.familyrecipe.book.data.repository.FamilyMemberRepository
 import com.familyrecipe.book.data.repository.RecipeRepository
@@ -19,8 +20,9 @@ object RepositoryModule {
     @Singleton
     fun provideRecipeRepository(
         recipeDao: RecipeDao,
-        preferenceDao: RecipePreferenceDao
-    ): RecipeRepository = RecipeRepository(recipeDao, preferenceDao)
+        preferenceDao: RecipePreferenceDao,
+        ingredientDao: RecipeIngredientDao
+    ): RecipeRepository = RecipeRepository(recipeDao, preferenceDao, ingredientDao)
 
     @Provides
     @Singleton

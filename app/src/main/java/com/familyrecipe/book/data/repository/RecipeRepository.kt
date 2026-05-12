@@ -1,11 +1,13 @@
 package com.familyrecipe.book.data.repository
 
 import com.familyrecipe.book.data.dao.RecipeDao
+import com.familyrecipe.book.data.dao.RecipeIngredientDao
 import com.familyrecipe.book.data.dao.RecipePreferenceDao
 import com.familyrecipe.book.data.model.Preference
 import com.familyrecipe.book.data.model.Recipe
 import com.familyrecipe.book.data.model.RecipeCategory
 import com.familyrecipe.book.data.model.RecipeFilter
+import com.familyrecipe.book.data.model.RecipeIngredient
 import com.familyrecipe.book.data.model.RecipePreference
 import com.familyrecipe.book.data.model.SortConfig
 import com.familyrecipe.book.data.model.SortDimension
@@ -17,7 +19,8 @@ import kotlinx.coroutines.flow.map
 
 class RecipeRepository(
     private val recipeDao: RecipeDao,
-    private val preferenceDao: RecipePreferenceDao
+    private val preferenceDao: RecipePreferenceDao,
+    private val ingredientDao: RecipeIngredientDao
 ) {
     fun getAllRecipes(): Flow<List<Recipe>> = recipeDao.getAllRecipes()
 
@@ -28,6 +31,39 @@ class RecipeRepository(
     suspend fun insertRecipe(recipe: Recipe): Long = recipeDao.insertRecipe(recipe)
 
     suspend fun updateRecipe(recipe: Recipe) = recipeDao.updateRecipe(recipe)
+
+    fun getIngredientsForRecipe(recipeId: Long): Flow<List<RecipeIngredient>> =
+        ingredientDao.getIngredientsForRecipe(recipeId)
+
+    fun getIngredientsForRecipes(recipeIds: List<Long>): Flow<List<RecipeIngredient>> =
+        if (recipeIds.isEmpty()) flowOf(emptyList()) else ingredientDao.getIngredientsForRecipes(recipeIds)
+
+    suspend fun saveRecipeWithIngredients(recipe: Recipe, ingredients: List<RecipeIngredient>): Long {
+        val recipeId = if (recipe.id == 0L) {
+            recipeDao.insertRecipe(recipe)
+        } else {
+            recipeDao.updateRecipe(recipe)
+            recipe.id
+        }
+        ingredientDao.deleteIngredientsForRecipe(recipeId)
+        val normalized = ingredients
+            .filter { it.name.isNotBlank() }
+            .mapIndexed { index, ingredient ->
+                ingredient.copy(
+                    id = 0,
+                    recipeId = recipeId,
+                    name = ingredient.name.trim(),
+                    amount = ingredient.amount.trim(),
+                    unit = ingredient.unit.trim(),
+                    note = ingredient.note.trim(),
+                    displayOrder = index
+                )
+            }
+        if (normalized.isNotEmpty()) {
+            ingredientDao.insertIngredients(normalized)
+        }
+        return recipeId
+    }
 
     suspend fun deleteRecipeById(id: Long) = recipeDao.deleteRecipeById(id)
 
@@ -52,8 +88,6 @@ class RecipeRepository(
     suspend fun removePreference(recipeId: Long, memberId: Long) {
         preferenceDao.deletePreference(recipeId, memberId)
     }
-
-    // ===== v2 新增方法 =====
 
     /**
      * 按分类获取菜谱列表

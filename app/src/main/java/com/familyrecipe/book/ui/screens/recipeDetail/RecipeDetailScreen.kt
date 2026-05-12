@@ -179,6 +179,23 @@ fun RecipeDetailScreen(
                     )
                 }
 
+                // 食材
+                if (uiState.ingredients.isNotEmpty()) {
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    Text(
+                        "食材清单",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    uiState.ingredients.forEach { ingredient ->
+                        Text(
+                            text = "• ${ingredient.displayText}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                }
+
                 // 步骤
                 if (uiState.steps.isNotEmpty()) {
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))

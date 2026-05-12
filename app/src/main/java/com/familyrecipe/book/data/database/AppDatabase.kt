@@ -6,14 +6,16 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.familyrecipe.book.data.dao.FamilyMemberDao
 import com.familyrecipe.book.data.dao.RecipeDao
+import com.familyrecipe.book.data.dao.RecipeIngredientDao
 import com.familyrecipe.book.data.dao.RecipePreferenceDao
 import com.familyrecipe.book.data.model.FamilyMember
 import com.familyrecipe.book.data.model.Recipe
+import com.familyrecipe.book.data.model.RecipeIngredient
 import com.familyrecipe.book.data.model.RecipePreference
 
 @Database(
-    entities = [Recipe::class, FamilyMember::class, RecipePreference::class],
-    version = 2,
+    entities = [Recipe::class, FamilyMember::class, RecipePreference::class, RecipeIngredient::class],
+    version = 1,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
     abstract fun familyMemberDao(): FamilyMemberDao
     abstract fun recipePreferenceDao(): RecipePreferenceDao
+    abstract fun recipeIngredientDao(): RecipeIngredientDao
 
     companion object {
         const val DATABASE_NAME = "family_recipe.db"

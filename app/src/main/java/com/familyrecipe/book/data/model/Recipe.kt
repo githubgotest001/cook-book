@@ -10,11 +10,11 @@ data class Recipe(
     val name: String,
     val description: String = "",
     val stepsJson: String = "[]", // JSON array of step strings
-    val cookingMinutes: Int = 0,
-    val difficulty: Int = 1, // 1-5
-    val category: String = "OTHER", // 存储 RecipeCategory.name
+    val cookingMinutes: Int = 15,
+    val difficulty: Int = 2, // 1-5
+    val category: String = "STIR_FRY", // 存储 RecipeCategory.name
     val coverImagePath: String? = null,
-    val recommendationIndex: Int = 3, // 1-5 推荐指数
+    val recommendationIndex: Int = 4, // 1-5 推荐指数
     val isFavorite: Boolean = false, // 收藏标记
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()

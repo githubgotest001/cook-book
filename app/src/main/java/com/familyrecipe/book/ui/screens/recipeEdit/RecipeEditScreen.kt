@@ -203,6 +203,15 @@ fun RecipeEditScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("10", "15", "30", "60").forEach { minutes ->
+                        FilterChip(
+                            selected = uiState.cookingMinutes == minutes,
+                            onClick = { viewModel.onCookingMinutesChange(minutes) },
+                            label = { Text("${minutes}分钟") }
+                        )
+                    }
+                }
 
                 // 难度选择
                 Text("难度", style = MaterialTheme.typography.labelLarge)
@@ -225,6 +234,72 @@ fun RecipeEditScreen(
                     rating = uiState.recommendationIndex,
                     onRatingChange = { viewModel.onRecommendationChange(it) }
                 )
+
+                // 食材
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("食材清单", style = MaterialTheme.typography.titleSmall)
+                    IconButton(onClick = viewModel::addIngredient) {
+                        Icon(Icons.Default.Add, contentDescription = "添加食材")
+                    }
+                }
+
+                uiState.ingredients.forEachIndexed { index, ingredient ->
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = ingredient.name,
+                                onValueChange = { viewModel.onIngredientNameChange(index, it) },
+                                label = { Text("食材 ${index + 1}") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            IconButton(onClick = { viewModel.removeIngredient(index) }) {
+                                Icon(Icons.Default.Close, contentDescription = "删除食材")
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = ingredient.amount,
+                                onValueChange = { viewModel.onIngredientAmountChange(index, it) },
+                                label = { Text("数量") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = ingredient.unit,
+                                onValueChange = { viewModel.onIngredientUnitChange(index, it) },
+                                label = { Text("单位") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("个", "克", "勺", "把", "适量").forEach { unit ->
+                                FilterChip(
+                                    selected = ingredient.unit == unit,
+                                    onClick = { viewModel.onIngredientUnitChange(index, unit) },
+                                    label = { Text(unit) }
+                                )
+                            }
+                        }
+                        OutlinedTextField(
+                            value = ingredient.note,
+                            onValueChange = { viewModel.onIngredientNoteChange(index, it) },
+                            label = { Text("备注") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                }
 
                 // 步骤
                 HorizontalDivider()
