@@ -3,6 +3,7 @@ package com.familyrecipe.book.ui.screens.recipeEdit
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -44,14 +46,24 @@ fun RecipeEditScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
+    // 图片保存失败时提示用户（之前是静默失败，用户以为没传上去）
+    LaunchedEffect(uiState.imageError) {
+        uiState.imageError?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            viewModel.onImageErrorShown()
+        }
+    }
+
     // 图片选择器对话框状态
     var showImagePickerDialog by remember { mutableStateOf(false) }
 
     // 分类下拉菜单展开状态
     var categoryExpanded by remember { mutableStateOf(false) }
 
-    // 相机拍照临时文件 URI
-    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
+    // 相机拍照临时文件 URI。
+    // 必须用 rememberSaveable：跳转相机期间 Activity 可能被回收/旋转重建，
+    // remember 会丢失 URI，导致拍照成功却无法回填封面。
+    var cameraImageUri by rememberSaveable { mutableStateOf<String?>(null) }
 
     // 相册选择器
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -65,8 +77,21 @@ fun RecipeEditScreen(
         contract = ActivityResultContracts.TakePicture()
     ) { success: Boolean ->
         if (success) {
-            cameraImageUri?.let { viewModel.onImageSelected(it) }
+            cameraImageUri?.let { viewModel.onImageSelected(Uri.parse(it)) }
         }
+        cameraImageUri = null
+    }
+
+    // 创建拍照临时文件并启动相机
+    fun startCamera() {
+        val photoFile = File(context.cacheDir, "camera_photo_${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            photoFile
+        )
+        cameraImageUri = uri.toString()
+        cameraLauncher.launch(uri)
     }
 
     // 相机权限请求
@@ -74,15 +99,9 @@ fun RecipeEditScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            // 权限授予后启动相机
-            val photoFile = File(context.cacheDir, "camera_photo_${System.currentTimeMillis()}.jpg")
-            val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                photoFile
-            )
-            cameraImageUri = uri
-            cameraLauncher.launch(uri)
+            startCamera()
+        } else {
+            Toast.makeText(context, "未授予相机权限，无法拍照", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -93,14 +112,7 @@ fun RecipeEditScreen(
         ) == PackageManager.PERMISSION_GRANTED
 
         if (hasCameraPermission) {
-            val photoFile = File(context.cacheDir, "camera_photo_${System.currentTimeMillis()}.jpg")
-            val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                photoFile
-            )
-            cameraImageUri = uri
-            cameraLauncher.launch(uri)
+            startCamera()
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }

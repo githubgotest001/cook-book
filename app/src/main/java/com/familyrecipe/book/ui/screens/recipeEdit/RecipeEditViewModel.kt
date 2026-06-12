@@ -2,6 +2,7 @@ package com.familyrecipe.book.ui.screens.recipeEdit
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -34,7 +35,9 @@ data class RecipeEditUiState(
     val selectedCategory: RecipeCategory? = RecipeCategory.STIR_FRY,
     val categoryError: Boolean = false,
     val isLoading: Boolean = false,
-    val isEditMode: Boolean = false
+    val isEditMode: Boolean = false,
+    /** 图片保存失败的提示消息，展示后由 UI 调用 onImageErrorShown() 清除 */
+    val imageError: String? = null
 )
 
 data class IngredientInput(
@@ -124,9 +127,17 @@ class RecipeEditViewModel @Inject constructor(
                 sessionImages.add(newPath)
                 _uiState.update { it.copy(coverImagePath = newPath) }
             } catch (e: Exception) {
-                // 图片保存失败，不更新路径
+                Log.e(TAG, "保存封面图片失败: $uri", e)
+                _uiState.update {
+                    it.copy(imageError = "图片处理失败，请换一张试试")
+                }
             }
         }
+    }
+
+    /** UI 展示过错误提示后调用，清除错误状态 */
+    fun onImageErrorShown() {
+        _uiState.update { it.copy(imageError = null) }
     }
 
     /**
@@ -305,5 +316,9 @@ class RecipeEditViewModel @Inject constructor(
             cleanupImagesAfterSave(state.coverImagePath)
             onDone()
         }
+    }
+
+    companion object {
+        private const val TAG = "RecipeEditViewModel"
     }
 }
