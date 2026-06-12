@@ -3,8 +3,10 @@ package com.familyrecipe.book.util
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.net.Uri
+import android.os.Build
 import androidx.exifinterface.media.ExifInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,13 +26,9 @@ object ImageUtils {
     /**
      * 将指定 Uri 的图片缩放后保存到应用内部存储。
      *
-     * 采用两段式解码：先只读取图片尺寸计算采样率（inSampleSize），
-     * 再按采样率解码，避免高像素照片整图解码导致 OOM。
-     * 同时读取 EXIF 方向信息，矫正相机拍摄图片的旋转。
-     *
-     * @param context 应用上下文
-     * @param sourceUri 源图片 Uri（来自相册或相机）
-     * @return 保存后的文件绝对路径
+     * 相册/相机返回的 content:// URI 不能直接用 [BitmapFactory.decodeStream] 解码
+     * （流不可 seek，易返回 null）。先复制到临时文件，再用 ImageDecoder（API 28+）
+     * 或 decodeFile 解码，兼容性更好。
      */
     suspend fun saveImage(
         context: Context,
@@ -39,47 +37,30 @@ object ImageUtils {
         val dir = File(context.filesDir, IMAGE_DIR).apply { mkdirs() }
         val destFile = File(dir, "recipe_${System.currentTimeMillis()}.jpg")
 
-        // 第一遍：只读尺寸
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(sourceUri)?.use { input ->
-            BitmapFactory.decodeStream(input, null, bounds)
-        } ?: throw IOException("无法读取图片")
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-            throw IOException("图片格式不支持")
-        }
-
-        // 第二遍：按采样率解码
-        val decodeOptions = BitmapFactory.Options().apply {
-            inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_DIMENSION)
-        }
-        var bitmap = context.contentResolver.openInputStream(sourceUri)?.use { input ->
-            BitmapFactory.decodeStream(input, null, decodeOptions)
-        } ?: throw IOException("图片解码失败")
-
-        // 精确缩放到 MAX_DIMENSION 以内
-        val scaled = scaleBitmap(bitmap, MAX_DIMENSION)
-        if (scaled !== bitmap) {
-            bitmap.recycle()
-            bitmap = scaled
-        }
-
-        // EXIF 旋转矫正
-        val rotationDegrees = readExifRotation(context, sourceUri)
-        if (rotationDegrees != 0f) {
-            val matrix = Matrix().apply { postRotate(rotationDegrees) }
-            val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-            if (rotated !== bitmap) {
-                bitmap.recycle()
-                bitmap = rotated
-            }
-        }
-
+        val temp = copyUriToTempFile(context, sourceUri)
         try {
-            FileOutputStream(destFile).use { output ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)
+            val decoded = decodeBitmap(temp.file)
+            var bitmap = decoded.bitmap
+            if (decoded.applyExifRotation) {
+                val rotation = readExifRotation(temp.file)
+                if (rotation != 0f) {
+                    bitmap = rotateBitmap(bitmap, rotation)
+                }
+            }
+
+            try {
+                FileOutputStream(destFile).use { output ->
+                    if (!bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)) {
+                        throw IOException("图片写入失败")
+                    }
+                }
+            } finally {
+                bitmap.recycle()
             }
         } finally {
-            bitmap.recycle()
+            if (temp.shouldDelete) {
+                temp.file.delete()
+            }
         }
 
         destFile.absolutePath
@@ -87,8 +68,6 @@ object ImageUtils {
 
     /**
      * 删除指定路径的图片文件。
-     *
-     * @param path 图片文件的绝对路径
      */
     fun deleteImage(path: String) {
         File(path).delete()
@@ -107,39 +86,166 @@ object ImageUtils {
         return sampleSize
     }
 
-    private fun readExifRotation(context: Context, uri: Uri): Float {
-        return try {
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                when (ExifInterface(input).getAttributeInt(
-                    ExifInterface.TAG_ORIENTATION,
-                    ExifInterface.ORIENTATION_NORMAL
-                )) {
-                    ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                    ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                    ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                    else -> 0f
-                }
-            } ?: 0f
-        } catch (e: Exception) {
-            0f
-        }
-    }
-
     /**
      * 按比例缩放 Bitmap，使最长边不超过 maxDimension。
-     * 如果图片已经小于等于 maxDimension，则返回原始 Bitmap。
-     * 使用 internal 可见性以便属性测试可以直接测试此方法。
-     *
-     * @param bitmap 原始 Bitmap
-     * @param maxDimension 最长边的最大像素值
-     * @return 缩放后的 Bitmap（如果无需缩放则返回原始 Bitmap）
      */
     internal fun scaleBitmap(bitmap: Bitmap, maxDimension: Int): Bitmap {
         val maxSide = maxOf(bitmap.width, bitmap.height)
         if (maxSide <= maxDimension) return bitmap
         val scale = maxDimension.toFloat() / maxSide
-        val newWidth = (bitmap.width * scale).toInt()
-        val newHeight = (bitmap.height * scale).toInt()
+        val newWidth = (bitmap.width * scale).toInt().coerceAtLeast(1)
+        val newHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
         return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+    }
+
+    private data class DecodedBitmap(
+        val bitmap: Bitmap,
+        /** ImageDecoder 已自动处理 EXIF 方向，无需再旋转 */
+        val applyExifRotation: Boolean
+    )
+
+    private data class TempImageFile(
+        val file: File,
+        val shouldDelete: Boolean
+    )
+
+    /**
+     * 将 URI 内容复制到临时文件，便于多次读取尺寸/EXIF/解码。
+     */
+    private fun copyUriToTempFile(context: Context, uri: Uri): TempImageFile {
+        // file:// 且可直接访问时跳过复制
+        if (uri.scheme == ContentResolverScheme.FILE) {
+            val path = uri.path
+            if (!path.isNullOrBlank()) {
+                val file = File(path)
+                if (file.exists() && file.canRead()) {
+                    return TempImageFile(file = file, shouldDelete = false)
+                }
+            }
+        }
+
+        val suffix = guessImageSuffix(context, uri)
+        val tempFile = File.createTempFile("recipe_import_", suffix, context.cacheDir)
+
+        val copied = try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                tempFile.outputStream().use { output -> input.copyTo(output) }
+            }
+            tempFile.length() > 0L
+        } catch (_: Exception) {
+            false
+        }
+
+        if (!copied) {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                tempFile.outputStream().use { output ->
+                    java.io.FileInputStream(pfd.fileDescriptor).use { input ->
+                        input.copyTo(output)
+                    }
+                }
+            } ?: throw IOException("无法读取图片")
+        }
+
+        if (tempFile.length() <= 0L) {
+            tempFile.delete()
+            throw IOException("图片文件为空")
+        }
+        return TempImageFile(file = tempFile, shouldDelete = true)
+    }
+
+    private fun guessImageSuffix(context: Context, uri: Uri): String {
+        return when (context.contentResolver.getType(uri)) {
+            "image/png" -> ".png"
+            "image/webp" -> ".webp"
+            "image/heic", "image/heif" -> ".heic"
+            else -> ".jpg"
+        }
+    }
+
+    private fun decodeBitmap(tempFile: File): DecodedBitmap {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                return DecodedBitmap(
+                    bitmap = decodeWithImageDecoder(tempFile),
+                    applyExifRotation = false
+                )
+            } catch (_: Exception) {
+                // 降级到 BitmapFactory
+            }
+        }
+        return DecodedBitmap(
+            bitmap = decodeWithBitmapFactory(tempFile),
+            applyExifRotation = true
+        )
+    }
+
+    private fun decodeWithImageDecoder(tempFile: File): Bitmap {
+        return ImageDecoder.decodeBitmap(ImageDecoder.createSource(tempFile)) { decoder, info, _ ->
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            decoder.isMutableRequired = true
+            val width = info.size.width
+            val height = info.size.height
+            val maxSide = maxOf(width, height)
+            if (maxSide > MAX_DIMENSION) {
+                val scale = MAX_DIMENSION.toFloat() / maxSide
+                decoder.setTargetSize(
+                    (width * scale).toInt().coerceAtLeast(1),
+                    (height * scale).toInt().coerceAtLeast(1)
+                )
+            }
+        }
+    }
+
+    private fun decodeWithBitmapFactory(tempFile: File): Bitmap {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(tempFile.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            throw IOException("图片格式不支持")
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_DIMENSION)
+        }
+        var bitmap = BitmapFactory.decodeFile(tempFile.absolutePath, decodeOptions)
+            ?: throw IOException("图片解码失败")
+
+        val scaled = scaleBitmap(bitmap, MAX_DIMENSION)
+        if (scaled !== bitmap) {
+            bitmap.recycle()
+            bitmap = scaled
+        }
+        return bitmap
+    }
+
+    private fun readExifRotation(file: File): Float {
+        return try {
+            when (
+                ExifInterface(file.absolutePath).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+            ) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+        } catch (_: Exception) {
+            0f
+        }
+    }
+
+    private fun rotateBitmap(bitmap: Bitmap, degrees: Float): Bitmap {
+        if (degrees == 0f) return bitmap
+        val matrix = Matrix().apply { postRotate(degrees) }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (rotated !== bitmap) {
+            bitmap.recycle()
+        }
+        return rotated
+    }
+
+    private object ContentResolverScheme {
+        const val FILE = "file"
     }
 }
