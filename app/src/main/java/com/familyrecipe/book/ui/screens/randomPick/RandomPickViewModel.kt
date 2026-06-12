@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.familyrecipe.book.data.datastore.SettingsStore
 import com.familyrecipe.book.data.model.Recipe
+import com.familyrecipe.book.data.model.RecipeCategory
 import com.familyrecipe.book.data.repository.RecipeRepository
 import com.familyrecipe.book.domain.RandomSelector
 import com.familyrecipe.book.domain.RandomWarning
@@ -32,7 +33,8 @@ class RandomPickViewModel @Inject constructor(
         val currentCount: Int = 3,
         val warning: RandomWarning? = null,
         val isLoading: Boolean = true,
-        val allRecipes: List<Recipe> = emptyList()
+        val allRecipes: List<Recipe> = emptyList(),
+        val selectedCategory: RecipeCategory? = null
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -78,12 +80,27 @@ class RandomPickViewModel @Inject constructor(
     }
 
     /**
+     * 设置分类过滤并重新选择。再次点击同一分类则取消过滤。
+     * @param category 分类，null 表示不限分类
+     */
+    fun setCategory(category: RecipeCategory?) {
+        _uiState.update {
+            val newCategory = if (it.selectedCategory == category) null else category
+            it.copy(selectedCategory = newCategory)
+        }
+        performSelection()
+    }
+
+    /**
      * 执行随机选择，更新 UI 状态
      */
     private fun performSelection() {
         val state = _uiState.value
+        val pool = state.selectedCategory?.let { category ->
+            state.allRecipes.filter { it.category == category.name }
+        } ?: state.allRecipes
         val result = randomSelector.selectRandom(
-            recipes = state.allRecipes,
+            recipes = pool,
             count = state.currentCount
         )
         _uiState.update {

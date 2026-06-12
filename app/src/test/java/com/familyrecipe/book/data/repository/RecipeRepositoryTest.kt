@@ -86,6 +86,7 @@ class RecipeRepositoryTest {
 
     @Test
     fun `deleteRecipeById delegates to RecipeDao`() = runTest {
+        coEvery { recipeDao.getRecipeById(7L) } returns null
         coEvery { recipeDao.deleteRecipeById(7L) } returns Unit
 
         repository.deleteRecipeById(7L)

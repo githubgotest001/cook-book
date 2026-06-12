@@ -82,6 +82,7 @@ dependencies {
     ksp(libs.hilt.android.compiler)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.exifinterface)
 
     implementation(libs.coil.compose)
     implementation(libs.kotlinx.coroutines.android)

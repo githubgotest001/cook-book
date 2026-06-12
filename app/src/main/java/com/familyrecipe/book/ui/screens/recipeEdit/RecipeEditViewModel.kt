@@ -58,12 +58,21 @@ class RecipeEditViewModel @Inject constructor(
 
     private val gson = Gson()
 
+    /** 数据库中已持久化的封面路径（编辑模式下加载），保存成功且被替换时才删除 */
+    private var persistedCoverPath: String? = null
+
+    /** 本次编辑会话中新生成的图片文件，未保存退出时全部清理 */
+    private val sessionImages = mutableSetOf<String>()
+
+    private var saved = false
+
     init {
         if (recipeId > 0) {
             _uiState.update { it.copy(isLoading = true, isEditMode = true) }
             viewModelScope.launch {
                 val recipe = repository.getRecipeById(recipeId)
                 if (recipe != null) {
+                    persistedCoverPath = recipe.coverImagePath
                     val steps: List<String> = try {
                         gson.fromJson(recipe.stepsJson, object : TypeToken<List<String>>() {}.type)
                     } catch (e: Exception) {
@@ -104,19 +113,15 @@ class RecipeEditViewModel @Inject constructor(
     fun onCategoryChange(value: String) = _uiState.update { it.copy(category = value) }
 
     /**
-     * 处理图片选择（从相册或相机获取）
-     * 如果已有封面图片，先删除旧图片再保存新图片
+     * 处理图片选择（从相册或相机获取）。
+     * 仅保存新图片并更新预览，旧图片的删除推迟到保存成功之后，
+     * 避免用户放弃编辑时已持久化的封面被误删。
      */
     fun onImageSelected(uri: Uri) {
         viewModelScope.launch {
-            // 删除旧图片
-            val oldPath = _uiState.value.coverImagePath
-            if (oldPath != null) {
-                ImageUtils.deleteImage(oldPath)
-            }
-            // 保存新图片
             try {
                 val newPath = ImageUtils.saveImage(application, uri)
+                sessionImages.add(newPath)
                 _uiState.update { it.copy(coverImagePath = newPath) }
             } catch (e: Exception) {
                 // 图片保存失败，不更新路径
@@ -125,14 +130,34 @@ class RecipeEditViewModel @Inject constructor(
     }
 
     /**
-     * 移除当前封面图片
+     * 移除当前封面图片（仅更新状态，文件清理在保存/退出时统一处理）
      */
     fun onImageRemoved() {
-        val oldPath = _uiState.value.coverImagePath
-        if (oldPath != null) {
-            ImageUtils.deleteImage(oldPath)
-        }
         _uiState.update { it.copy(coverImagePath = null) }
+    }
+
+    /**
+     * 保存成功后清理无用图片文件：
+     * - 本次会话产生但最终未采用的新图
+     * - 被替换或移除的旧封面
+     */
+    private fun cleanupImagesAfterSave(finalPath: String?) {
+        sessionImages.filter { it != finalPath }.forEach { ImageUtils.deleteImage(it) }
+        sessionImages.clear()
+        persistedCoverPath?.let { old ->
+            if (old != finalPath) {
+                ImageUtils.deleteImage(old)
+            }
+        }
+        persistedCoverPath = finalPath
+    }
+
+    override fun onCleared() {
+        // 未保存就退出：清理本次会话产生的所有新图片
+        if (!saved) {
+            sessionImages.forEach { ImageUtils.deleteImage(it) }
+        }
+        super.onCleared()
     }
 
     /**
@@ -276,6 +301,8 @@ class RecipeEditViewModel @Inject constructor(
                     ingredients
                 )
             }
+            saved = true
+            cleanupImagesAfterSave(state.coverImagePath)
             onDone()
         }
     }

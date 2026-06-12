@@ -23,6 +23,7 @@ fun AppNavGraph(navController: NavHostController) {
             RecipeListScreen(
                 onRecipeClick = { id -> navController.navigate(NavRoutes.recipeDetail(id)) },
                 onAddClick = { navController.navigate(NavRoutes.recipeEdit(0)) },
+                onEditRecipe = { id -> navController.navigate(NavRoutes.recipeEdit(id)) },
                 onMembersClick = { navController.navigate(NavRoutes.MEMBER_LIST) },
                 onSettingsClick = { navController.navigate(NavRoutes.SETTINGS) },
                 onShoppingListClick = { navController.navigate(NavRoutes.SHOPPING_LIST) },

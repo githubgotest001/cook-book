@@ -1,5 +1,7 @@
 package com.familyrecipe.book.ui.screens.settings
 
+import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,6 +33,7 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val defaultRandomCount by viewModel.defaultRandomCount.collectAsState()
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showRestartDialog by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
 
     // 导出备份
@@ -65,12 +68,23 @@ fun SettingsScreen(
                 }
                 isProcessing = false
                 if (result.isSuccess) {
-                    Toast.makeText(context, "恢复成功，建议重启应用", Toast.LENGTH_LONG).show()
+                    showRestartDialog = true
                 } else {
                     Toast.makeText(context, "恢复失败: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
+    }
+
+    if (showRestartDialog) {
+        AlertDialog(
+            onDismissRequest = { /* 强制选择重启，避免数据状态不一致 */ },
+            title = { Text("恢复成功") },
+            text = { Text("数据已恢复，需要重启应用使其生效。") },
+            confirmButton = {
+                TextButton(onClick = { restartApp(context) }) { Text("立即重启") }
+            }
+        )
     }
 
     if (showAboutDialog) {
@@ -213,4 +227,16 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+/**
+ * 重启整个应用进程（导入备份后使新数据库生效）
+ */
+private fun restartApp(context: Context) {
+    val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+    val componentName = launchIntent?.component
+    if (componentName != null) {
+        context.startActivity(Intent.makeRestartActivityTask(componentName))
+    }
+    Runtime.getRuntime().exit(0)
 }

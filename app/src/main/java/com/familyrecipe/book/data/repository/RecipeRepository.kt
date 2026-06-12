@@ -12,6 +12,7 @@ import com.familyrecipe.book.data.model.RecipePreference
 import com.familyrecipe.book.data.model.SortConfig
 import com.familyrecipe.book.data.model.SortDimension
 import com.familyrecipe.book.data.model.SortOrder
+import com.familyrecipe.book.util.ImageUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
@@ -65,7 +66,14 @@ class RecipeRepository(
         return recipeId
     }
 
-    suspend fun deleteRecipeById(id: Long) = recipeDao.deleteRecipeById(id)
+    /**
+     * 删除菜谱，同时清理其封面图片文件，避免遗留孤儿文件
+     */
+    suspend fun deleteRecipeById(id: Long) {
+        val coverPath = recipeDao.getRecipeById(id)?.coverImagePath
+        recipeDao.deleteRecipeById(id)
+        coverPath?.let { ImageUtils.deleteImage(it) }
+    }
 
     // 喜好相关
     fun getPreferencesForRecipe(recipeId: Long): Flow<List<RecipePreference>> =

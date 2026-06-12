@@ -1,12 +1,13 @@
 package com.familyrecipe.book.ui.screens.randomPick
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -14,15 +15,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.AsyncImage
 import com.familyrecipe.book.data.model.Recipe
+import com.familyrecipe.book.data.model.RecipeCategory
 import com.familyrecipe.book.domain.RandomWarning
 import com.familyrecipe.book.ui.components.CategoryChip
+import com.familyrecipe.book.ui.components.RecipeCoverThumb
 import com.familyrecipe.book.ui.components.StarRating
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,17 +38,19 @@ fun RandomPickScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("今天吃什么") },
+                title = { Text("今天吃什么 🎲") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = viewModel::refreshRandom) {
-                        Icon(Icons.Default.Refresh, contentDescription = "换一批")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = viewModel::refreshRandom,
+                icon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                text = { Text("换一批") }
             )
         }
     ) { padding ->
@@ -56,6 +59,28 @@ fun RandomPickScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // 分类过滤：想喝汤就只随机汤
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = uiState.selectedCategory == null,
+                    onClick = { viewModel.setCategory(null) },
+                    label = { Text("不限") }
+                )
+                RecipeCategory.entries.forEach { category ->
+                    FilterChip(
+                        selected = uiState.selectedCategory == category,
+                        onClick = { viewModel.setCategory(category) },
+                        label = { Text("${category.emoji} ${category.label}") }
+                    )
+                }
+            }
+
             // 数量选择器
             CountSelector(
                 currentCount = uiState.currentCount,
@@ -65,7 +90,12 @@ fun RandomPickScreen(
             // 警告提示
             uiState.warning?.let { warning ->
                 val message = when (warning) {
-                    RandomWarning.NO_RECIPES -> "还没有菜谱，快去添加吧！"
+                    RandomWarning.NO_RECIPES ->
+                        if (uiState.selectedCategory != null) {
+                            "这个分类下还没有菜谱，换个分类试试"
+                        } else {
+                            "还没有菜谱，快去添加吧！"
+                        }
                     RandomWarning.INSUFFICIENT_RECIPES -> "可用菜谱不足，已显示全部"
                 }
                 Text(
@@ -81,17 +111,24 @@ fun RandomPickScreen(
                     CircularProgressIndicator()
                 }
             } else if (uiState.selectedRecipes.isEmpty() && uiState.warning == null) {
-                // 空状态提示（无菜谱时，且没有已显示的警告）
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "还没有菜谱，快去添加吧！",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(text = "🎲", fontSize = 56.sp)
+                        Text(
+                            text = "还没有菜谱，快去添加吧！",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(
+                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp
+                    ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(uiState.selectedRecipes, key = { it.id }) { recipe ->
@@ -134,11 +171,11 @@ private fun CountSelector(
 
 @Composable
 private fun RandomRecipeCard(recipe: Recipe, onClick: () -> Unit) {
-    Card(
+    ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
@@ -146,24 +183,18 @@ private fun RandomRecipeCard(recipe: Recipe, onClick: () -> Unit) {
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 封面缩略图
-            AsyncImage(
-                model = recipe.coverImagePath,
+            RecipeCoverThumb(
+                coverImagePath = recipe.coverImagePath,
                 contentDescription = "${recipe.name}封面",
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
+                size = 80.dp
             )
 
-            // 菜谱信息
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 72.dp),
+                    .heightIn(min = 80.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // 标题
                 Text(
                     text = recipe.name,
                     style = MaterialTheme.typography.titleMedium,
@@ -171,23 +202,24 @@ private fun RandomRecipeCard(recipe: Recipe, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // 推荐指数星形评分
                 StarRating(
                     rating = recipe.recommendationIndex,
+                    starSize = 18.dp,
                     modifier = Modifier.padding(vertical = 2.dp)
                 )
 
-                // 底部信息行：分类标签 + 烹饪时间
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CategoryChip(category = recipe.recipeCategory)
-                    Text(
-                        text = "⏱ ${recipe.cookingMinutes}分钟",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (recipe.cookingMinutes > 0) {
+                        Text(
+                            text = "⏱ ${recipe.cookingMinutes}分钟",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

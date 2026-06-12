@@ -4,15 +4,15 @@ package com.familyrecipe.book.data.model
  * 菜谱分类枚举
  * 用于替代原有的自由文本分类，提供类型安全的分类管理
  */
-enum class RecipeCategory(val label: String) {
-    STIR_FRY("炒菜"),
-    SOUP("煲汤"),
-    QUICK_MEAL("速食"),
-    STAPLE("主食"),
-    COLD_DISH("凉菜"),
-    DESSERT("甜品"),
-    BEVERAGE("饮品"),
-    OTHER("其他");
+enum class RecipeCategory(val label: String, val emoji: String) {
+    STIR_FRY("炒菜", "🍳"),
+    SOUP("煲汤", "🍲"),
+    QUICK_MEAL("速食", "⚡"),
+    STAPLE("主食", "🍚"),
+    COLD_DISH("凉菜", "🥗"),
+    DESSERT("甜品", "🍰"),
+    BEVERAGE("饮品", "🥤"),
+    OTHER("其他", "🍴");
 
     companion object {
         /**

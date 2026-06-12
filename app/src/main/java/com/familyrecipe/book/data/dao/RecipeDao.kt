@@ -19,6 +19,10 @@ interface RecipeDao {
         WHERE name LIKE '%' || :query || '%' 
         OR description LIKE '%' || :query || '%'
         OR stepsJson LIKE '%' || :query || '%'
+        OR id IN (
+            SELECT recipeId FROM recipe_ingredients 
+            WHERE name LIKE '%' || :query || '%'
+        )
         ORDER BY updatedAt DESC
         """
     )

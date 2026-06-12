@@ -9,9 +9,11 @@ import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import com.familyrecipe.book.ui.theme.AppTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
@@ -19,12 +21,14 @@ import androidx.compose.ui.unit.dp
  *
  * @param rating 当前评分（1-5）
  * @param onRatingChange 评分变更回调，为 null 时组件为只读模式
+ * @param starSize 单颗星的尺寸
  * @param modifier Modifier
  */
 @Composable
 fun StarRating(
     rating: Int,
     onRatingChange: ((Int) -> Unit)? = null,
+    starSize: Dp = 24.dp,
     modifier: Modifier = Modifier
 ) {
     val clampedRating = rating.coerceIn(1, 5)
@@ -38,19 +42,19 @@ fun StarRating(
             val isFilled = i <= clampedRating
             val starModifier = if (onRatingChange != null) {
                 Modifier
-                    .size(24.dp)
+                    .size(starSize)
                     .clickable { onRatingChange(i) }
             } else {
-                Modifier.size(24.dp)
+                Modifier.size(starSize)
             }
 
             Icon(
                 imageVector = if (isFilled) Icons.Filled.Star else Icons.Outlined.Star,
                 contentDescription = if (isFilled) "已选第 $i 星" else "未选第 $i 星",
                 tint = if (isFilled) {
-                    MaterialTheme.colorScheme.primary
+                    AppTheme.extendedColors.star
                 } else {
-                    MaterialTheme.colorScheme.outline
+                    MaterialTheme.colorScheme.outlineVariant
                 },
                 modifier = starModifier
             )
