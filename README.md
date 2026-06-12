@@ -2,6 +2,8 @@
 
 一款面向家庭使用的 Android 菜谱管理应用，帮助你记录拿手菜的做法、家人的口味偏好、食材明细，并在做饭前快速生成购物清单。
 
+**当前版本：v1.1.0** — 重构 UI/交互、增强购物清单与烹饪模式、修复封面图片相关问题。
+
 ## 功能介绍
 
 ### 菜谱管理
@@ -12,9 +14,15 @@
 - 推荐指数评分（1-5 星）
 
 ### 菜谱分类
-- 8 种预定义分类：炒菜、煲汤、速食、主食、凉菜、甜品、饮品、其他
+- 8 种预定义分类，带 emoji 与专属配色标签：🍳 炒菜、🍲 煲汤、⚡ 速食、🍚 主食、🥗 凉菜、🍰 甜品、🥤 饮品、🍴 其他
 - 按分类筛选菜谱
 - 创建/编辑时必选分类
+
+### 首页与列表
+- 搜索框支持一键清除；排序收纳为下拉菜单；筛选收纳为底部面板（激活时显示角标）
+- 首页「今天吃什么」渐变横幅，一键进入随机选菜
+- 收藏菜谱分组置顶展示；列表项支持长按编辑/删除
+- 滚动时 TopAppBar 自动收起，留出更多列表空间
 
 ### 搜索与筛选
 - 按名称/简介/步骤/食材模糊搜索（"家里有鸡蛋能做什么"一搜便知）
@@ -30,7 +38,7 @@
 - 详情页一键收藏/取消收藏
 
 ### 随机选菜
-- "今天吃什么"随机推荐功能
+- 首页横幅或顶栏进入「今天吃什么」
 - 支持按分类过滤（"随机一个汤"）
 - 可配置默认数量（1-10，设置页调整）
 - 支持自定义单次数量
@@ -38,7 +46,8 @@
 - 菜谱不足时友好提示
 
 ### 烹饪模式与分享
-- 详情页步骤可逐条勾选完成，带进度展示
+- 详情页封面 hero 布局：底部渐变压暗，叠加分类与烹饪时长
+- 步骤可逐条勾选完成，带进度条与完成计数
 - 屏幕常亮开关，做饭时不熄屏
 - 菜谱一键分享为文本（含食材和步骤）
 
@@ -62,9 +71,14 @@
 
 ### 数据备份与恢复
 - 手动导出：将数据库和图片打包为 `.zip` 文件，保存到手机任意位置或云盘
-- 手动导入：选择之前导出的 `.zip` 文件恢复数据
+- 手动导入：选择之前导出的 `.zip` 文件恢复数据，成功后一键重启应用生效
 - 应用重装后数据不丢失，只需导入备份即可恢复
 - 同时开启 Android Auto Backup 作为兜底保护
+
+### 界面与视觉
+- 跟随系统的深色模式（`values-night` 主题）
+- 暖色奶油背景与语义化扩展色（喜欢 / 不喜欢 / 收藏 / 评分星）
+- 分类彩色胶囊标签、琥珀色评分星、空状态 emoji 点缀
 
 ## 技术架构
 
@@ -75,7 +89,7 @@
 | 语言 | Kotlin 2.1.0 |
 | UI 框架 | Jetpack Compose + Material 3 |
 | 架构模式 | MVVM (ViewModel + StateFlow + Repository) |
-| 依赖注入 | Hilt 2.51 |
+| 依赖注入 | Hilt 2.54 |
 | 数据库 | Room 2.6.1 (SQLite) |
 | 设置存储 | DataStore Preferences |
 | 页面导航 | Navigation Compose 2.7.7 |
@@ -107,7 +121,7 @@ app/src/main/java/com/familyrecipe/book/
 │   ├── database/
 │   │   └── AppDatabase.kt          # Room 数据库定义
 │   ├── datastore/
-│   │   └── SettingsStore.kt        # DataStore 设置存储
+│   │   └── SettingsStore.kt        # 随机数量、购物清单状态等 DataStore 存储
 │   └── repository/                 # 数据仓库层
 │       ├── RecipeRepository.kt     # 含组合筛选/排序逻辑
 │       └── FamilyMemberRepository.kt
@@ -118,12 +132,13 @@ app/src/main/java/com/familyrecipe/book/
 ├── domain/                         # 领域逻辑
 │   └── RandomSelector.kt           # 随机选菜算法
 ├── util/
-│   └── ImageUtils.kt               # 图片缩放/存储工具
+│   └── ImageUtils.kt               # 图片采样缩放、EXIF 旋转矫正、存储与删除
 └── ui/
-    ├── theme/Theme.kt              # Material 3 主题配色
+    ├── theme/Theme.kt              # 深浅主题 + 语义化扩展色
     ├── components/                 # 共享 UI 组件
     │   ├── StarRating.kt           # 5 星评分组件
-    │   ├── CategoryChip.kt         # 分类标签组件
+    │   ├── CategoryChip.kt         # emoji + 分类配色标签
+    │   ├── RecipeCover.kt          # 封面缩略图（含占位）
     │   └── ImagePicker.kt          # 图片选择器对话框
     ├── navigation/                 # 导航路由
     │   ├── NavRoutes.kt
@@ -151,10 +166,10 @@ Recipe (菜谱)
   coverImagePath, recommendationIndex(1-5), isFavorite,
   createdAt, updatedAt
 
-RecipeCategory (分类枚举)
-  STIR_FRY(炒菜), SOUP(煲汤), QUICK_MEAL(速食),
-  STAPLE(主食), COLD_DISH(凉菜), DESSERT(甜品),
-  BEVERAGE(饮品), OTHER(其他)
+RecipeCategory (分类枚举，含 emoji)
+  STIR_FRY(🍳炒菜), SOUP(🍲煲汤), QUICK_MEAL(⚡速食),
+  STAPLE(🍚主食), COLD_DISH(🥗凉菜), DESSERT(🍰甜品),
+  BEVERAGE(🥤饮品), OTHER(🍴其他)
 
 RecipeIngredient (菜谱食材)
   id, recipeId, name, amount, unit, note, displayOrder
@@ -299,13 +314,23 @@ android {
 | 操作 | 步骤 |
 |------|------|
 | 导出备份 | 设置 → 导出备份 → 选择保存位置 → 生成 `family_recipe_backup.zip` |
-| 导入恢复 | 设置 → 导入恢复 → 选择之前导出的 `.zip` 文件 → 重启应用生效 |
+| 导入恢复 | 设置 → 导入恢复 → 选择之前导出的 `.zip` 文件 → 点击「立即重启」生效 |
 
 备份文件包含：
 - `db/` — SQLite 数据库文件（含 WAL 日志）
 - `images/` — 菜谱封面图片
 
 建议将备份文件保存到云盘同步目录（如 OneDrive、Google Drive），这样换机或重装时随时可恢复。
+
+## 近期改进（v1.1）
+
+- 修复编辑页换图后未保存导致封面丢失的问题
+- 大图两段式采样解码 + EXIF 旋转，避免 OOM 与照片方向错误
+- 删除菜谱时同步清理封面图片文件
+- 购物清单：已购勾选、数量合并、手动项、分享、状态持久化
+- 首页 UI 重构：筛选面板、排序菜单、随机选菜横幅、收藏分组
+- 详情页烹饪模式与文本分享；随机选菜支持分类过滤
+- 搜索支持按食材匹配；导入备份后一键重启
 
 ## 后续规划
 
