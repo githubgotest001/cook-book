@@ -2,7 +2,7 @@
 
 一款面向家庭使用的 Android 菜谱管理应用，帮助你记录拿手菜的做法、家人的口味偏好、食材明细，并在做饭前快速生成购物清单。
 
-**当前版本：v1.1.0** — 重构 UI/交互、增强购物清单与烹饪模式、修复封面图片相关问题。
+**当前版本：v1.2.0** — 统一设计系统、修复备份数据完整性、补充 CI 与测试、优化各页面 UI。
 
 ## 功能介绍
 
@@ -212,7 +212,7 @@ RecipePreference (喜好关联，复合主键)
 - Android Studio Hedgehog (2023.1) 或更高版本
 - JDK 17
 - Android SDK，compileSdk 34
-- Gradle 8.9（项目自带 wrapper 配置）
+- Gradle 8.5（项目自带 wrapper，`./gradlew` 可直接构建）
 
 ## 如何运行
 
@@ -321,6 +321,14 @@ android {
 - `images/` — 菜谱封面图片
 
 建议将备份文件保存到云盘同步目录（如 OneDrive、Google Drive），这样换机或重装时随时可恢复。
+
+## 近期改进（v1.2）
+
+- 统一 Material 3 设计系统：Typography、Shapes、语义化卡片与空状态组件
+- 修复数据库双实例问题：Hilt 与备份共用单例，备份前 WAL checkpoint
+- 购物清单新增采购进度条；各页面空状态与卡片视觉优化
+- 补充 `IngredientAmountMerger` 单元测试；修复 JUnit4 测试在 JUnit Platform 下被跳过
+- 添加 GitHub Actions CI；补齐 Unix `gradlew` 脚本
 
 ## 近期改进（v1.1）
 

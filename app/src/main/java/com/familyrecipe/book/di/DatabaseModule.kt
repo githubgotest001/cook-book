@@ -1,7 +1,6 @@
 package com.familyrecipe.book.di
 
 import android.content.Context
-import androidx.room.Room
 import com.familyrecipe.book.data.dao.FamilyMemberDao
 import com.familyrecipe.book.data.dao.RecipeDao
 import com.familyrecipe.book.data.dao.RecipeIngredientDao
@@ -21,11 +20,7 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
-        return Room.databaseBuilder(
-            context,
-            AppDatabase::class.java,
-            AppDatabase.DATABASE_NAME
-        ).build()
+        return AppDatabase.getInstance(context)
     }
 
     @Provides

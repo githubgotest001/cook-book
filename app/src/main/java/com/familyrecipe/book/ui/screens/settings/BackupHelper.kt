@@ -3,23 +3,25 @@ package com.familyrecipe.book.ui.screens.settings
 import android.content.Context
 import android.net.Uri
 import com.familyrecipe.book.data.database.AppDatabase
-import java.io.*
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /**
- * 备份/恢复工具：将数据库文件 + 图片目录打包为 zip
+ * 备份/恢复工具：将数据库文件 + 图片目录打包为 zip。
+ * 必须通过 Hilt 注入的 [AppDatabase] 实例操作，确保关闭的是运行时正在使用的数据库。
  */
 object BackupHelper {
 
-    /**
-     * 导出备份到用户选择的 URI
-     */
-    fun exportBackup(context: Context, uri: Uri): Result<Unit> {
+    fun exportBackup(context: Context, database: AppDatabase, uri: Uri): Result<Unit> {
         return try {
-            // 先关闭数据库确保数据完整
-            AppDatabase.closeDatabase()
+            database.checkpointWal()
+            AppDatabase.closeAndClearInstance()
 
             val dbFile = context.getDatabasePath(AppDatabase.DATABASE_NAME)
             val dbWalFile = File(dbFile.path + "-wal")
@@ -28,7 +30,6 @@ object BackupHelper {
 
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                 ZipOutputStream(BufferedOutputStream(outputStream)).use { zip ->
-                    // 打包数据库文件
                     if (dbFile.exists()) {
                         addFileToZip(zip, dbFile, "db/${dbFile.name}")
                     }
@@ -38,33 +39,26 @@ object BackupHelper {
                     if (dbShmFile.exists()) {
                         addFileToZip(zip, dbShmFile, "db/${dbShmFile.name}")
                     }
-
-                    // 打包图片目录
                     if (imagesDir.exists() && imagesDir.isDirectory) {
                         imagesDir.listFiles()?.forEach { file ->
                             addFileToZip(zip, file, "images/${file.name}")
                         }
                     }
                 }
-            }
+            } ?: return Result.failure(IllegalStateException("无法写入备份文件"))
 
-            // 重新打开数据库
             AppDatabase.getInstance(context)
             Result.success(Unit)
         } catch (e: Exception) {
-            // 确保数据库重新打开
             AppDatabase.getInstance(context)
             Result.failure(e)
         }
     }
 
-    /**
-     * 从用户选择的 URI 导入备份
-     */
-    fun importBackup(context: Context, uri: Uri): Result<Unit> {
+    fun importBackup(context: Context, database: AppDatabase, uri: Uri): Result<Unit> {
         return try {
-            // 关闭数据库
-            AppDatabase.closeDatabase()
+            database.checkpointWal()
+            AppDatabase.closeAndClearInstance()
 
             val dbFile = context.getDatabasePath(AppDatabase.DATABASE_NAME)
             val imagesDir = File(context.filesDir, "recipe_images")
@@ -95,9 +89,8 @@ object BackupHelper {
                         entry = zip.nextEntry
                     }
                 }
-            }
+            } ?: return Result.failure(IllegalStateException("无法读取备份文件"))
 
-            // 重新打开数据库
             AppDatabase.getInstance(context)
             Result.success(Unit)
         } catch (e: Exception) {
