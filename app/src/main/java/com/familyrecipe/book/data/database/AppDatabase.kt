@@ -53,9 +53,10 @@ abstract class AppDatabase : RoomDatabase() {
     }
 
     /**
-     * 执行 WAL checkpoint，确保主数据库文件包含最新数据。
+     * 执行 WAL checkpoint（TRUNCATE 模式），把日志全部刷入主库文件并清空 WAL，
+     * 保证单独复制主库文件即可得到完整数据。
      */
     fun checkpointWal() {
-        openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").close()
+        openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE)").use { it.moveToFirst() }
     }
 }
