@@ -127,6 +127,8 @@ fun FamilyRecipeTheme(
     CompositionLocalProvider(LocalExtendedColors provides extendedColors) {
         MaterialTheme(
             colorScheme = colorScheme,
+            typography = AppTypography,
+            shapes = AppShapes,
             content = content
         )
     }

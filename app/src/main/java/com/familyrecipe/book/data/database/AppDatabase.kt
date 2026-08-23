@@ -33,22 +33,30 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DATABASE_NAME
-                ).build()
-                INSTANCE = instance
-                instance
+                ).build().also { INSTANCE = it }
             }
         }
 
         /**
-         * 关闭数据库（备份/恢复时需要先关闭）
+         * 关闭当前实例并清空单例引用（备份/恢复前调用）。
          */
-        fun closeDatabase() {
-            INSTANCE?.close()
-            INSTANCE = null
+        fun closeAndClearInstance() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
         }
+    }
+
+    /**
+     * 执行 WAL checkpoint（TRUNCATE 模式），把日志全部刷入主库文件并清空 WAL，
+     * 保证单独复制主库文件即可得到完整数据。
+     */
+    fun checkpointWal() {
+        openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE)").use { it.moveToFirst() }
     }
 }

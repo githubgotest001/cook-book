@@ -41,6 +41,8 @@ import com.familyrecipe.book.data.model.RecipeCategory
 import com.familyrecipe.book.data.model.SortDimension
 import com.familyrecipe.book.data.model.SortOrder
 import com.familyrecipe.book.ui.components.CategoryChip
+import com.familyrecipe.book.ui.components.EmptyStateBox
+import com.familyrecipe.book.ui.components.LoadingBox
 import com.familyrecipe.book.ui.components.RecipeCoverThumb
 import com.familyrecipe.book.ui.components.StarRating
 import com.familyrecipe.book.ui.theme.AppTheme
@@ -211,15 +213,14 @@ fun RecipeListScreen(
             // 内容区域
             when {
                 uiState.isLoading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
+                    LoadingBox()
                 }
 
                 uiState.recipes.isEmpty() -> {
-                    EmptyState(
+                    EmptyStateBox(
                         emoji = if (hasAnyFilter) "🔍" else "🍳",
-                        message = if (hasAnyFilter) "没有匹配的菜谱" else "还没有菜谱\n记录第一道拿手菜吧",
+                        title = if (hasAnyFilter) "没有匹配的菜谱" else "还没有菜谱",
+                        subtitle = if (hasAnyFilter) "试试调整筛选条件" else "记录第一道拿手菜吧",
                         actionLabel = if (hasAnyFilter) "清除筛选" else "添加菜谱",
                         onAction = if (hasAnyFilter) viewModel::clearFilters else onAddClick
                     )
@@ -299,12 +300,12 @@ private fun RandomPickBanner(
     val extended = AppTheme.extendedColors
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(
                 Brush.horizontalGradient(listOf(extended.heroStart, extended.heroEnd))
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -517,29 +518,6 @@ private fun FilterBottomSheet(
     }
 }
 
-@Composable
-private fun EmptyState(
-    emoji: String,
-    message: String,
-    actionLabel: String,
-    onAction: () -> Unit
-) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(text = emoji, fontSize = 56.sp)
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            FilledTonalButton(onClick = onAction) { Text(actionLabel) }
-        }
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RecipeCard(
@@ -560,7 +538,10 @@ private fun RecipeCard(
                     onClick = onClick,
                     onLongClick = { showMenu = true }
                 ),
-            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+            )
         ) {
             Row(
                 modifier = Modifier

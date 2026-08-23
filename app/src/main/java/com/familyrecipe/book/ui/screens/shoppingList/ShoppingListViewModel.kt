@@ -6,6 +6,7 @@ import com.familyrecipe.book.data.datastore.SettingsStore
 import com.familyrecipe.book.data.model.Recipe
 import com.familyrecipe.book.data.model.RecipeIngredient
 import com.familyrecipe.book.data.repository.RecipeRepository
+import com.familyrecipe.book.domain.IngredientAmountMerger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -151,7 +152,7 @@ class ShoppingListViewModel @Inject constructor(
                 ShoppingListItem(
                     key = key,
                     name = group.first().name.trim(),
-                    amountText = mergeAmounts(group),
+                    amountText = IngredientAmountMerger.mergeAmounts(group),
                     noteText = group.map { it.note.trim() }
                         .filter { it.isNotBlank() }
                         .distinct()
@@ -178,35 +179,4 @@ class ShoppingListViewModel @Inject constructor(
         )
     }
 
-    /**
-     * 合并同一食材的数量：
-     * - 同单位且数量均为数字时做数值累加（2个 + 3个 = 5个）
-     * - 无法解析时降级为并列展示（少许、适量等）
-     * - 不同单位之间用 " + " 连接（2个 + 500克）
-     */
-    private fun mergeAmounts(group: List<RecipeIngredient>): String {
-        val byUnit = group.groupBy { it.unit.trim() }
-        val parts = byUnit.mapNotNull { (unit, items) ->
-            val amounts = items.map { it.amount.trim() }.filter { it.isNotBlank() }
-            if (amounts.isEmpty()) {
-                return@mapNotNull unit.ifBlank { null }
-            }
-            val numbers = amounts.map { it.toDoubleOrNull() }
-            if (numbers.all { it != null }) {
-                formatNumber(numbers.filterNotNull().sum()) + unit
-            } else {
-                amounts.distinct().joinToString("、") { it + unit }
-            }
-        }
-        return parts.joinToString(" + ")
-    }
-
-    private fun formatNumber(value: Double): String {
-        return if (value % 1.0 == 0.0) {
-            value.toLong().toString()
-        } else {
-            // 保留最多两位小数并去除末尾的 0
-            String.format("%.2f", value).trimEnd('0').trimEnd('.')
-        }
-    }
 }

@@ -23,6 +23,8 @@ import com.familyrecipe.book.data.model.Recipe
 import com.familyrecipe.book.data.model.RecipeCategory
 import com.familyrecipe.book.domain.RandomWarning
 import com.familyrecipe.book.ui.components.CategoryChip
+import com.familyrecipe.book.ui.components.EmptyStateBox
+import com.familyrecipe.book.ui.components.LoadingBox
 import com.familyrecipe.book.ui.components.RecipeCoverThumb
 import com.familyrecipe.book.ui.components.StarRating
 
@@ -107,23 +109,13 @@ fun RandomPickScreen(
             }
 
             if (uiState.isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                LoadingBox()
             } else if (uiState.selectedRecipes.isEmpty() && uiState.warning == null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(text = "🎲", fontSize = 56.sp)
-                        Text(
-                            text = "还没有菜谱，快去添加吧！",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                EmptyStateBox(
+                    emoji = "🎲",
+                    title = "还没有菜谱",
+                    subtitle = "快去添加几道拿手菜，再来随机选吧"
+                )
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(
@@ -175,7 +167,10 @@ private fun RandomRecipeCard(recipe: Recipe, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+        )
     ) {
         Row(
             modifier = Modifier

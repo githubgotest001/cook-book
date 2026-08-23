@@ -20,6 +20,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.familyrecipe.book.ui.components.EmptyStateBox
+import com.familyrecipe.book.ui.components.LoadingBox
+import com.familyrecipe.book.ui.components.SectionTitle
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -74,15 +77,11 @@ fun ShoppingListScreen(
         }
     ) { padding ->
         if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            LoadingBox(modifier = Modifier.padding(padding))
         } else {
+            val progress = if (uiState.shoppingItems.isEmpty()) 0f
+            else uiState.shoppingItems.count { it.purchased }.toFloat() / uiState.shoppingItems.size
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -90,9 +89,38 @@ fun ShoppingListScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // ===== 菜谱选择 =====
+                if (uiState.shoppingItems.isNotEmpty()) {
+                    item(key = "progress") {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    "采购进度",
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                                Text(
+                                    "${(progress * 100).toInt()}%",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            LinearProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp),
+                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                }
+
                 item(key = "header_recipes") {
-                    Text("选择要采购的菜谱", style = MaterialTheme.typography.titleMedium)
+                    SectionTitle(title = "选择要采购的菜谱")
                 }
 
                 if (uiState.recipes.isEmpty()) {
@@ -156,42 +184,32 @@ fun ShoppingListScreen(
                 // ===== 采购清单 =====
                 item(key = "header_items") {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "采购清单",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        if (uiState.shoppingItems.isNotEmpty()) {
-                            Text(
-                                "还差 ${uiState.pendingCount} 项",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (uiState.pendingCount == 0) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
+                    SectionTitle(
+                        title = "采购清单",
+                        trailing = {
+                            if (uiState.shoppingItems.isNotEmpty()) {
+                                Text(
+                                    "还差 ${uiState.pendingCount} 项",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (uiState.pendingCount == 0) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                            }
                         }
-                    }
+                    )
                 }
 
                 if (uiState.shoppingItems.isEmpty()) {
                     item(key = "empty_items") {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(text = "🛒", fontSize = 48.sp)
-                            Text(
-                                "勾选菜谱或手动添加，食材会自动合并到这里",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        EmptyStateBox(
+                            emoji = "🛒",
+                            title = "清单还是空的",
+                            subtitle = "勾选菜谱或手动添加，食材会自动合并到这里",
+                            modifier = Modifier.fillMaxWidth().height(200.dp)
+                        )
                     }
                 } else {
                     items(uiState.shoppingItems, key = { it.key }) { item ->
@@ -217,7 +235,14 @@ private fun ShoppingItemRow(
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = if (item.purchased) {
+                MaterialTheme.colorScheme.surfaceContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLowest
+            }
+        )
     ) {
         Row(
             modifier = Modifier
