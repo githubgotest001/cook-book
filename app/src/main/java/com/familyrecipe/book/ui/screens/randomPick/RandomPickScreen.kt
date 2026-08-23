@@ -22,6 +22,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.familyrecipe.book.data.model.Recipe
 import com.familyrecipe.book.data.model.RecipeCategory
 import com.familyrecipe.book.domain.RandomWarning
+import com.familyrecipe.book.ui.components.CategoryChip
 import com.familyrecipe.book.ui.components.EmptyStateBox
 import com.familyrecipe.book.ui.components.LoadingBox
 import com.familyrecipe.book.ui.components.RecipeCoverThumb

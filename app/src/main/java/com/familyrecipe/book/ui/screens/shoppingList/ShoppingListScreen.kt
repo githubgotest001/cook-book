@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.familyrecipe.book.ui.components.EmptyStateBox
 import com.familyrecipe.book.ui.components.LoadingBox
 import com.familyrecipe.book.ui.components.SectionTitle
