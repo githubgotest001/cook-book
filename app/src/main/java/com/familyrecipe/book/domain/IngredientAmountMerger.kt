@@ -1,6 +1,7 @@
 package com.familyrecipe.book.domain
 
 import com.familyrecipe.book.data.model.RecipeIngredient
+import java.util.Locale
 
 /**
  * 合并同一食材的数量文本，供购物清单等业务复用。
@@ -28,7 +29,8 @@ object IngredientAmountMerger {
         return if (value % 1.0 == 0.0) {
             value.toLong().toString()
         } else {
-            String.format("%.2f", value).trimEnd('0').trimEnd('.')
+            // Locale.ROOT 保证小数点格式不受系统语言影响
+            String.format(Locale.ROOT, "%.2f", value).trimEnd('0').trimEnd('.')
         }
     }
 }

@@ -47,10 +47,6 @@ android {
             it.useJUnitPlatform()
         }
     }
-
-    sourceSets {
-        getByName("androidTest").assets.srcDirs("$projectDir/schemas")
-    }
 }
 
 ksp {
@@ -89,23 +85,11 @@ dependencies {
     implementation(libs.gson)
 
     // Unit test dependencies
+    // junit-vintage-engine 让 JUnit4 测试在 JUnit Platform（kotest 需要）下也能被执行
     testImplementation(libs.junit)
     testRuntimeOnly(libs.junit.vintage.engine)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.androidx.room.testing)
     testImplementation(libs.kotest.property)
     testImplementation(libs.kotest.runner.junit5)
-
-    // Android instrumented test dependencies
-    androidTestImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.espresso.core)
-    androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation(libs.androidx.test.rules)
-    androidTestImplementation(libs.hilt.android.testing)
-    androidTestImplementation(libs.androidx.room.testing)
-    kspAndroidTest(libs.hilt.android.compiler)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
