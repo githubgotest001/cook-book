@@ -60,10 +60,11 @@ fun RecipeEditScreen(
     // 分类下拉菜单展开状态
     var categoryExpanded by remember { mutableStateOf(false) }
 
-    // 相机拍照临时文件 URI。
+    // 相机拍照临时文件 URI 与缓存文件路径。
     // 必须用 rememberSaveable：跳转相机期间 Activity 可能被回收/旋转重建，
     // remember 会丢失 URI，导致拍照成功却无法回填封面。
     var cameraImageUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var cameraImageFilePath by rememberSaveable { mutableStateOf<String?>(null) }
 
     // 相册选择器
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -72,14 +73,19 @@ fun RecipeEditScreen(
         uri?.let { viewModel.onImageSelected(it) }
     }
 
-    // 相机拍照
+    // 相机拍照。成功时交给 ViewModel 复制并在用完后删除缓存原图；
+    // 取消/失败时立刻删除缓存文件，避免临时文件泄漏。
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success: Boolean ->
+        val filePath = cameraImageFilePath
         if (success) {
-            cameraImageUri?.let { viewModel.onImageSelected(Uri.parse(it)) }
+            cameraImageUri?.let { viewModel.onImageSelected(Uri.parse(it), tempCacheFilePath = filePath) }
+        } else {
+            filePath?.let { File(it).delete() }
         }
         cameraImageUri = null
+        cameraImageFilePath = null
     }
 
     // 创建拍照临时文件并启动相机
@@ -91,6 +97,7 @@ fun RecipeEditScreen(
             photoFile
         )
         cameraImageUri = uri.toString()
+        cameraImageFilePath = photoFile.absolutePath
         cameraLauncher.launch(uri)
     }
 
@@ -355,7 +362,8 @@ fun RecipeEditScreen(
 
 /**
  * 封面图片选择区域
- * 显示当前封面预览或占位图标，点击触发图片选择器
+ * 显示当前封面预览或占位图标，点击触发图片选择器。
+ * 占位层始终在底部，图片加载成功后覆盖其上；不在组合期做 File.exists() 磁盘 I/O。
  */
 @Composable
 private fun CoverImageSection(
@@ -363,8 +371,6 @@ private fun CoverImageSection(
     onImageClick: () -> Unit,
     onRemoveImage: () -> Unit
 ) {
-    val imageFileExists = coverImagePath != null && File(coverImagePath).exists()
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -372,15 +378,40 @@ private fun CoverImageSection(
             .clickable { onImageClick() },
         contentAlignment = Alignment.Center
     ) {
-        if (imageFileExists) {
-            // 显示当前封面预览
+        // 占位图标（始终绘制，图片加载成功后被覆盖）
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PhotoCamera,
+                    contentDescription = "添加封面图片",
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "点击添加封面图片",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        if (coverImagePath != null) {
             AsyncImage(
-                model = File(coverImagePath!!),
+                model = File(coverImagePath),
                 contentDescription = "菜谱封面预览",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
-            // 移除图片按钮
+            // 移除图片按钮：只要设置了路径就展示，方便清掉失效的封面
             IconButton(
                 onClick = onRemoveImage,
                 modifier = Modifier.align(Alignment.TopEnd)
@@ -390,32 +421,6 @@ private fun CoverImageSection(
                     contentDescription = "移除封面图片",
                     tint = MaterialTheme.colorScheme.onSurface
                 )
-            }
-        } else {
-            // 占位图标
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PhotoCamera,
-                        contentDescription = "添加封面图片",
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "点击添加封面图片",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
         }
     }
