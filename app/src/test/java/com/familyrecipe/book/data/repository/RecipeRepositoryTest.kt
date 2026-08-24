@@ -1,19 +1,25 @@
 package com.familyrecipe.book.data.repository
 
+import androidx.room.RoomDatabase
+import androidx.room.withTransaction
 import com.familyrecipe.book.data.dao.RecipeDao
 import com.familyrecipe.book.data.dao.RecipeIngredientDao
 import com.familyrecipe.book.data.dao.RecipePreferenceDao
 import com.familyrecipe.book.data.model.Preference
 import com.familyrecipe.book.data.model.Recipe
+import com.familyrecipe.book.data.model.RecipeIngredient
 import com.familyrecipe.book.data.model.RecipePreference
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.slot
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
@@ -21,6 +27,7 @@ import org.junit.Test
 
 class RecipeRepositoryTest {
 
+    private lateinit var database: RoomDatabase
     private lateinit var recipeDao: RecipeDao
     private lateinit var preferenceDao: RecipePreferenceDao
     private lateinit var ingredientDao: RecipeIngredientDao
@@ -28,10 +35,23 @@ class RecipeRepositoryTest {
 
     @Before
     fun setup() {
+        database = mockk(relaxed = true)
         recipeDao = mockk(relaxed = true)
         preferenceDao = mockk(relaxed = true)
         ingredientDao = mockk(relaxed = true)
-        repository = RecipeRepository(recipeDao, preferenceDao, ingredientDao)
+        repository = RecipeRepository(database, recipeDao, preferenceDao, ingredientDao)
+
+        // mock Room 的 withTransaction 扩展：直接执行事务体
+        mockkStatic("androidx.room.RoomDatabaseKt")
+        val transactionSlot = slot<suspend () -> Long>()
+        coEvery { database.withTransaction(capture(transactionSlot)) } coAnswers {
+            transactionSlot.captured.invoke()
+        }
+    }
+
+    @After
+    fun tearDown() {
+        unmockkStatic("androidx.room.RoomDatabaseKt")
     }
 
     // ===== 插入操作 =====
@@ -80,6 +100,85 @@ class RecipeRepositoryTest {
         repository.updateRecipe(recipe)
 
         coVerify { recipeDao.updateRecipe(recipe) }
+    }
+
+    // ===== saveRecipeWithIngredients：事务写入 =====
+
+    @Test
+    fun `saveRecipeWithIngredients inserts new recipe and ingredients inside transaction`() = runTest {
+        val recipe = createTestRecipe(id = 0L, name = "新菜")
+        coEvery { recipeDao.insertRecipe(recipe) } returns 10L
+        val insertedSlot = slot<List<RecipeIngredient>>()
+        coEvery { ingredientDao.insertIngredients(capture(insertedSlot)) } returns Unit
+
+        val ingredients = listOf(
+            RecipeIngredient(recipeId = 0L, name = " 土豆 ", amount = " 2 ", unit = " 个 ", note = " 去皮 "),
+            RecipeIngredient(recipeId = 0L, name = "   ", amount = "1", unit = "个", note = "")
+        )
+
+        val resultId = repository.saveRecipeWithIngredients(recipe, ingredients)
+
+        assertEquals(10L, resultId)
+        // 整个写入必须包在 withTransaction 中
+        coVerify(exactly = 1) { database.withTransaction(any<suspend () -> Long>()) }
+        coVerify { ingredientDao.deleteIngredientsForRecipe(10L) }
+        // 空白名称被过滤，字段被 trim，recipeId/displayOrder 被规整
+        val saved = insertedSlot.captured
+        assertEquals(1, saved.size)
+        assertEquals("土豆", saved[0].name)
+        assertEquals("2", saved[0].amount)
+        assertEquals("个", saved[0].unit)
+        assertEquals("去皮", saved[0].note)
+        assertEquals(10L, saved[0].recipeId)
+        assertEquals(0, saved[0].displayOrder)
+    }
+
+    @Test
+    fun `saveRecipeWithIngredients updates existing recipe and keeps id`() = runTest {
+        val recipe = createTestRecipe(id = 5L, name = "老菜")
+
+        val resultId = repository.saveRecipeWithIngredients(recipe, emptyList())
+
+        assertEquals(5L, resultId)
+        coVerify { recipeDao.updateRecipe(recipe) }
+        coVerify(exactly = 0) { recipeDao.insertRecipe(any()) }
+        coVerify { ingredientDao.deleteIngredientsForRecipe(5L) }
+        // 没有有效食材时不调用插入
+        coVerify(exactly = 0) { ingredientDao.insertIngredients(any()) }
+    }
+
+    @Test
+    fun `normalizeIngredients filters blanks trims fields and reassigns order`() {
+        val normalized = repository.normalizeIngredients(
+            listOf(
+                RecipeIngredient(id = 7L, recipeId = 1L, name = "  ", amount = "1", unit = "个", note = ""),
+                RecipeIngredient(id = 8L, recipeId = 1L, name = " 鸡蛋 ", amount = " 3 ", unit = " 个 ", note = " 常温 "),
+                RecipeIngredient(id = 9L, recipeId = 1L, name = "葱", amount = "适量", unit = "", note = "")
+            ),
+            recipeId = 42L
+        )
+
+        assertEquals(2, normalized.size)
+        assertEquals("鸡蛋", normalized[0].name)
+        assertEquals("常温", normalized[0].note)
+        assertEquals(0L, normalized[0].id)
+        assertEquals(42L, normalized[0].recipeId)
+        assertEquals(0, normalized[0].displayOrder)
+        assertEquals("葱", normalized[1].name)
+        assertEquals(1, normalized[1].displayOrder)
+    }
+
+    // ===== 收藏状态 =====
+
+    @Test
+    fun `toggleFavorite delegates to atomic dao update`() = runTest {
+        coEvery { recipeDao.toggleFavorite(3L) } returns Unit
+
+        repository.toggleFavorite(3L)
+
+        coVerify(exactly = 1) { recipeDao.toggleFavorite(3L) }
+        // 不应先读后写（原子 SQL 不需要查询）
+        coVerify(exactly = 0) { recipeDao.getRecipeById(any()) }
     }
 
     // ===== 删除操作 =====

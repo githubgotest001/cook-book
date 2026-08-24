@@ -13,6 +13,12 @@ interface RecipeDao {
     @Query("SELECT * FROM recipes WHERE id = :id")
     suspend fun getRecipeById(id: Long): Recipe?
 
+    /**
+     * 以 Flow 形式观察单个菜谱，编辑保存后详情页可自动收到最新数据。
+     */
+    @Query("SELECT * FROM recipes WHERE id = :id")
+    fun getRecipeByIdFlow(id: Long): Flow<Recipe?>
+
     @Query(
         """
         SELECT * FROM recipes 
@@ -34,8 +40,11 @@ interface RecipeDao {
     @Query("SELECT * FROM recipes WHERE id IN (:ids) ORDER BY updatedAt DESC")
     fun getRecipesByIds(ids: List<Long>): Flow<List<Recipe>>
 
-    @Query("UPDATE recipes SET isFavorite = :isFavorite WHERE id = :id")
-    suspend fun updateFavoriteStatus(id: Long, isFavorite: Boolean)
+    /**
+     * 单条 SQL 原子翻转收藏状态，避免"读取-取反-写回"竞态。
+     */
+    @Query("UPDATE recipes SET isFavorite = NOT isFavorite WHERE id = :id")
+    suspend fun toggleFavorite(id: Long)
 
     @Query("SELECT * FROM recipes ORDER BY isFavorite DESC, updatedAt DESC")
     fun getAllRecipesWithFavoriteFirst(): Flow<List<Recipe>>

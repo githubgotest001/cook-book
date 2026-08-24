@@ -45,17 +45,13 @@ class RecipeDetailViewModel @Inject constructor(
     }
 
     private fun loadData() {
+        // 以 Flow 观察菜谱主体：编辑页保存后，详情页自动收到最新数据，无需手动刷新
         viewModelScope.launch {
-            val recipe = recipeRepository.getRecipeById(recipeId)
-            if (recipe != null) {
-                val steps: List<String> = try {
-                    gson.fromJson(recipe.stepsJson, object : TypeToken<List<String>>() {}.type)
-                } catch (e: Exception) {
-                    if (recipe.stepsJson.isNotBlank()) listOf(recipe.stepsJson) else emptyList()
+            recipeRepository.getRecipeByIdFlow(recipeId).collect { recipe ->
+                _uiState.update {
+                    it.copy(recipe = recipe, steps = parseSteps(recipe), isLoading = false)
                 }
-                _uiState.update { it.copy(recipe = recipe, steps = steps) }
             }
-            _uiState.update { it.copy(isLoading = false) }
         }
 
         viewModelScope.launch {
@@ -77,18 +73,27 @@ class RecipeDetailViewModel @Inject constructor(
         }
     }
 
+    private fun parseSteps(recipe: Recipe?): List<String> {
+        if (recipe == null) return emptyList()
+        return try {
+            gson.fromJson(recipe.stepsJson, object : TypeToken<List<String>>() {}.type)
+        } catch (e: Exception) {
+            if (recipe.stepsJson.isNotBlank()) listOf(recipe.stepsJson) else emptyList()
+        }
+    }
+
     fun setPreference(memberId: Long, preference: Preference) {
         viewModelScope.launch {
             recipeRepository.setPreference(recipeId, memberId, preference)
         }
     }
 
+    /**
+     * 数据库端原子翻转收藏状态；UI 通过 recipe Flow 自动刷新，无需手动同步状态。
+     */
     fun toggleFavorite() {
         viewModelScope.launch {
-            val currentRecipe = _uiState.value.recipe ?: return@launch
-            val newFavorite = !currentRecipe.isFavorite
-            recipeRepository.updateFavoriteStatus(currentRecipe.id, newFavorite)
-            _uiState.update { it.copy(recipe = it.recipe?.copy(isFavorite = newFavorite)) }
+            recipeRepository.toggleFavorite(recipeId)
         }
     }
 
