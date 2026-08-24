@@ -39,11 +39,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,7 +51,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.familyrecipe.book.ui.components.SectionTitle
-import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,30 +60,16 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val defaultRandomCount by viewModel.defaultRandomCount.collectAsState()
+    val backupState by viewModel.backupState.collectAsState()
     var showAboutDialog by remember { mutableStateOf(false) }
-    var showRestartDialog by remember { mutableStateOf(false) }
-    var isProcessing by remember { mutableStateOf(false) }
+    val isProcessing = backupState is BackupUiState.InProgress
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
         if (uri != null) {
-            isProcessing = true
-            scope.launch {
-                val result = viewModel.exportBackup(uri)
-                isProcessing = false
-                if (result.isSuccess) {
-                    Toast.makeText(context, "备份成功", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(
-                        context,
-                        "备份失败: ${result.exceptionOrNull()?.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
+            viewModel.exportBackup(uri)
         }
     }
 
@@ -92,23 +77,29 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            isProcessing = true
-            scope.launch {
-                val result = viewModel.importBackup(uri)
-                isProcessing = false
-                if (result.isSuccess) {
-                    showRestartDialog = true
-                } else {
-                    Toast.makeText(
-                        context,
-                        "恢复失败: ${result.exceptionOrNull()?.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
+            viewModel.importBackup(uri)
         }
     }
 
+    // 导出成功/任意失败用 Toast 提示后复位状态；导入成功走下方重启对话框
+    LaunchedEffect(backupState) {
+        when (val state = backupState) {
+            is BackupUiState.Success -> if (state.operation == BackupOperation.EXPORT) {
+                Toast.makeText(context, "备份成功", Toast.LENGTH_SHORT).show()
+                viewModel.acknowledgeBackupResult()
+            }
+            is BackupUiState.Failure -> {
+                val prefix = if (state.operation == BackupOperation.EXPORT) "备份失败" else "恢复失败"
+                Toast.makeText(context, "$prefix: ${state.message}", Toast.LENGTH_LONG).show()
+                viewModel.acknowledgeBackupResult()
+            }
+            else -> Unit
+        }
+    }
+
+    val showRestartDialog = backupState.let {
+        it is BackupUiState.Success && it.operation == BackupOperation.IMPORT
+    }
     if (showRestartDialog) {
         AlertDialog(
             onDismissRequest = { /* 强制选择重启，避免数据状态不一致 */ },
@@ -249,12 +240,16 @@ fun SettingsScreen(
                         }
                     }
 
-                    if (isProcessing) {
+                    val inProgress = backupState as? BackupUiState.InProgress
+                    if (inProgress != null) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("处理中...", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                if (inProgress.operation == BackupOperation.EXPORT) "正在导出..." else "正在恢复...",
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
                     }
                 }
