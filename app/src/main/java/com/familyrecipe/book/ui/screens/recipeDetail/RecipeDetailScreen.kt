@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
 import com.familyrecipe.book.data.model.Preference
 import com.familyrecipe.book.data.model.Recipe
 import com.familyrecipe.book.data.model.RecipeIngredient
@@ -242,25 +243,42 @@ fun RecipeDetailScreen(
 }
 
 /**
- * 封面区域：图片底部渐变压暗，叠加分类和烹饪时长信息（美食 App 常见的 hero 布局）
+ * 封面区域：图片底部渐变压暗，叠加分类和烹饪时长信息（美食 App 常见的 hero 布局）。
+ * 不在组合期做 File.exists()：占位层始终在底部，由 Coil 的加载状态（onState）
+ * 决定是否展示渐变层与深色标签；文件缺失/解码失败时自然回退到占位图。
  */
 @Composable
 private fun CoverImage(recipe: Recipe) {
     val imagePath = recipe.coverImagePath
-    val imageFileExists = imagePath != null && File(imagePath).exists()
+    var imageLoaded by remember(imagePath) { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(260.dp)
     ) {
-        if (imageFileExists) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = recipe.recipeCategory.emoji, fontSize = 64.sp)
+        }
+
+        if (imagePath != null) {
             AsyncImage(
-                model = File(imagePath!!),
+                model = File(imagePath),
                 contentDescription = "菜谱封面图片",
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Crop,
+                onState = { state ->
+                    imageLoaded = state is AsyncImagePainter.State.Success
+                }
             )
+        }
+
+        if (imageLoaded) {
             // 底部渐变压暗，保证叠加文字可读
             Box(
                 modifier = Modifier
@@ -273,15 +291,6 @@ private fun CoverImage(recipe: Recipe) {
                         )
                     )
             )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = recipe.recipeCategory.emoji, fontSize = 64.sp)
-            }
         }
 
         // 叠加信息：分类 + 烹饪时长
@@ -293,10 +302,10 @@ private fun CoverImage(recipe: Recipe) {
         ) {
             OverlayTag(
                 text = "${recipe.recipeCategory.emoji} ${recipe.recipeCategory.label}",
-                onImage = imageFileExists
+                onImage = imageLoaded
             )
             if (recipe.cookingMinutes > 0) {
-                OverlayTag(text = "⏱ ${recipe.cookingMinutes}分钟", onImage = imageFileExists)
+                OverlayTag(text = "⏱ ${recipe.cookingMinutes}分钟", onImage = imageLoaded)
             }
         }
     }

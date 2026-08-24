@@ -1,5 +1,7 @@
 package com.familyrecipe.book.data.repository
 
+import androidx.room.RoomDatabase
+import androidx.room.withTransaction
 import com.familyrecipe.book.data.dao.RecipeDao
 import com.familyrecipe.book.data.dao.RecipeIngredientDao
 import com.familyrecipe.book.data.dao.RecipePreferenceDao
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 class RecipeRepository(
+    private val database: RoomDatabase,
     private val recipeDao: RecipeDao,
     private val preferenceDao: RecipePreferenceDao,
     private val ingredientDao: RecipeIngredientDao
@@ -28,6 +31,8 @@ class RecipeRepository(
     fun searchRecipes(query: String): Flow<List<Recipe>> = recipeDao.searchRecipes(query)
 
     suspend fun getRecipeById(id: Long): Recipe? = recipeDao.getRecipeById(id)
+
+    fun getRecipeByIdFlow(id: Long): Flow<Recipe?> = recipeDao.getRecipeByIdFlow(id)
 
     suspend fun insertRecipe(recipe: Recipe): Long = recipeDao.insertRecipe(recipe)
 
@@ -39,32 +44,46 @@ class RecipeRepository(
     fun getIngredientsForRecipes(recipeIds: List<Long>): Flow<List<RecipeIngredient>> =
         if (recipeIds.isEmpty()) flowOf(emptyList()) else ingredientDao.getIngredientsForRecipes(recipeIds)
 
+    /**
+     * 菜谱主体与食材在同一个数据库事务内写入：
+     * 任一步骤失败时整体回滚，不会出现"菜谱已更新但食材被清空"的中间状态。
+     */
     suspend fun saveRecipeWithIngredients(recipe: Recipe, ingredients: List<RecipeIngredient>): Long {
-        val recipeId = if (recipe.id == 0L) {
-            recipeDao.insertRecipe(recipe)
-        } else {
-            recipeDao.updateRecipe(recipe)
-            recipe.id
-        }
-        ingredientDao.deleteIngredientsForRecipe(recipeId)
-        val normalized = ingredients
-            .filter { it.name.isNotBlank() }
-            .mapIndexed { index, ingredient ->
-                ingredient.copy(
-                    id = 0,
-                    recipeId = recipeId,
-                    name = ingredient.name.trim(),
-                    amount = ingredient.amount.trim(),
-                    unit = ingredient.unit.trim(),
-                    note = ingredient.note.trim(),
-                    displayOrder = index
-                )
+        return database.withTransaction {
+            val recipeId = if (recipe.id == 0L) {
+                recipeDao.insertRecipe(recipe)
+            } else {
+                recipeDao.updateRecipe(recipe)
+                recipe.id
             }
-        if (normalized.isNotEmpty()) {
-            ingredientDao.insertIngredients(normalized)
+            ingredientDao.deleteIngredientsForRecipe(recipeId)
+            val normalized = normalizeIngredients(ingredients, recipeId)
+            if (normalized.isNotEmpty()) {
+                ingredientDao.insertIngredients(normalized)
+            }
+            recipeId
         }
-        return recipeId
     }
+
+    /**
+     * 过滤空白食材并统一整理字段（trim、重排 displayOrder、绑定 recipeId）。
+     */
+    internal fun normalizeIngredients(
+        ingredients: List<RecipeIngredient>,
+        recipeId: Long
+    ): List<RecipeIngredient> = ingredients
+        .filter { it.name.isNotBlank() }
+        .mapIndexed { index, ingredient ->
+            ingredient.copy(
+                id = 0,
+                recipeId = recipeId,
+                name = ingredient.name.trim(),
+                amount = ingredient.amount.trim(),
+                unit = ingredient.unit.trim(),
+                note = ingredient.note.trim(),
+                displayOrder = index
+            )
+        }
 
     /**
      * 删除菜谱，同时清理其封面图片文件，避免遗留孤儿文件
@@ -104,10 +123,10 @@ class RecipeRepository(
         recipeDao.getRecipesByCategory(category.name)
 
     /**
-     * 更新菜谱收藏状态
+     * 原子翻转收藏状态（单条 SQL，无读写竞态）
      */
-    suspend fun updateFavoriteStatus(id: Long, isFavorite: Boolean) {
-        recipeDao.updateFavoriteStatus(id, isFavorite)
+    suspend fun toggleFavorite(id: Long) {
+        recipeDao.toggleFavorite(id)
     }
 
     /**

@@ -119,8 +119,10 @@ class RecipeEditViewModel @Inject constructor(
      * 处理图片选择（从相册或相机获取）。
      * 仅保存新图片并更新预览，旧图片的删除推迟到保存成功之后，
      * 避免用户放弃编辑时已持久化的封面被误删。
+     *
+     * @param tempCacheFilePath 拍照产生的缓存原图路径；图片复制完成后删除，避免临时文件泄漏
      */
-    fun onImageSelected(uri: Uri) {
+    fun onImageSelected(uri: Uri, tempCacheFilePath: String? = null) {
         viewModelScope.launch {
             try {
                 val newPath = ImageUtils.saveImage(application, uri)
@@ -131,6 +133,8 @@ class RecipeEditViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(imageError = "图片处理失败，请换一张试试")
                 }
+            } finally {
+                tempCacheFilePath?.let { ImageUtils.deleteImage(it) }
             }
         }
     }

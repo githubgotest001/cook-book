@@ -23,6 +23,24 @@ object ImageUtils {
     private const val IMAGE_DIR = "recipe_images"
     private const val JPEG_QUALITY = 85
 
+    /** 缓存目录中属于本应用的临时文件前缀（拍照原图、图片导入中转文件） */
+    internal val TEMP_CACHE_PREFIXES = listOf("camera_photo_", "recipe_import_")
+
+    /**
+     * 清理缓存目录中残留的临时文件（拍照原图、图片导入中转文件）。
+     * 进程被杀、拍照取消等场景会留下孤儿文件，应用启动时统一兜底清理。
+     *
+     * @return 删除的文件数
+     */
+    fun cleanupTempCacheFiles(cacheDir: File): Int {
+        val files = cacheDir.listFiles() ?: return 0
+        return files.count { file ->
+            file.isFile &&
+                TEMP_CACHE_PREFIXES.any { prefix -> file.name.startsWith(prefix) } &&
+                file.delete()
+        }
+    }
+
     /**
      * 将指定 Uri 的图片缩放后保存到应用内部存储。
      *

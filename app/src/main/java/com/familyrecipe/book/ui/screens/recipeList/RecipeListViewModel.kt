@@ -196,12 +196,11 @@ class RecipeListViewModel @Inject constructor(
     }
 
     /**
-     * 切换菜谱收藏状态
+     * 切换菜谱收藏状态（数据库端单条 SQL 原子翻转）
      */
     fun toggleFavorite(recipeId: Long) {
         viewModelScope.launch {
-            val recipe = repository.getRecipeById(recipeId) ?: return@launch
-            repository.updateFavoriteStatus(recipeId, !recipe.isFavorite)
+            repository.toggleFavorite(recipeId)
         }
     }
 

@@ -23,6 +23,10 @@ import java.io.File
  * 菜谱封面缩略图。
  * 统一处理无封面/文件丢失时的占位展示，供列表页、随机选菜页等复用。
  *
+ * 占位层始终绘制在底部：图片加载成功后覆盖其上；路径为 null、文件缺失
+ * 或解码失败时 Coil 进入 error 状态不绘制内容，自然回退到占位图。
+ * 不在组合期做 File.exists() 磁盘 I/O，避免列表滚动掉帧。
+ *
  * @param coverImagePath 封面图片绝对路径，可为 null
  * @param contentDescription 无障碍描述
  * @param size 缩略图边长
@@ -34,35 +38,32 @@ fun RecipeCoverThumb(
     size: Dp = 80.dp,
     modifier: Modifier = Modifier
 ) {
-    val fileExists = coverImagePath != null && File(coverImagePath).exists()
-
     Box(
         modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center
     ) {
-        if (fileExists) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Restaurant,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(size / 2.2f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (coverImagePath != null) {
             AsyncImage(
-                model = File(coverImagePath!!),
+                model = File(coverImagePath),
                 contentDescription = contentDescription,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Restaurant,
-                    contentDescription = contentDescription,
-                    modifier = Modifier.size(size / 2.2f),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }
