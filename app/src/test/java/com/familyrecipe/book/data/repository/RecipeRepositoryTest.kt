@@ -1,18 +1,22 @@
 package com.familyrecipe.book.data.repository
 
+import androidx.room.withTransaction
 import com.familyrecipe.book.data.dao.RecipeDao
+import com.familyrecipe.book.data.database.AppDatabase
 import com.familyrecipe.book.data.dao.RecipeIngredientDao
 import com.familyrecipe.book.data.dao.RecipePreferenceDao
 import com.familyrecipe.book.data.model.Preference
 import com.familyrecipe.book.data.model.Recipe
 import com.familyrecipe.book.data.model.RecipePreference
 import io.mockk.coEvery
+import io.mockk.mockkStatic
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -21,6 +25,7 @@ import org.junit.Test
 
 class RecipeRepositoryTest {
 
+    private lateinit var database: AppDatabase
     private lateinit var recipeDao: RecipeDao
     private lateinit var preferenceDao: RecipePreferenceDao
     private lateinit var ingredientDao: RecipeIngredientDao
@@ -28,10 +33,24 @@ class RecipeRepositoryTest {
 
     @Before
     fun setup() {
+        database = mockk(relaxed = true)
         recipeDao = mockk(relaxed = true)
         preferenceDao = mockk(relaxed = true)
         ingredientDao = mockk(relaxed = true)
-        repository = RecipeRepository(recipeDao, preferenceDao, ingredientDao)
+        mockkStatic("androidx.room.RoomDatabaseKt")
+        coEvery {
+            database.withTransaction(any<suspend () -> Long>())
+        } coAnswers {
+            val block = args[0] as suspend () -> Long
+            kotlinx.coroutines.runBlocking { block() }
+        }
+        coEvery {
+            database.withTransaction(any<suspend () -> Any>())
+        } coAnswers {
+            val block = args[0] as suspend () -> Any
+            kotlinx.coroutines.runBlocking { block() }
+        }
+        repository = RecipeRepository(database, recipeDao, preferenceDao, ingredientDao)
     }
 
     // ===== 插入操作 =====

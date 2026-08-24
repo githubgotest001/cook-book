@@ -13,6 +13,9 @@ interface RecipeDao {
     @Query("SELECT * FROM recipes WHERE id = :id")
     suspend fun getRecipeById(id: Long): Recipe?
 
+    @Query("SELECT * FROM recipes WHERE id = :id")
+    fun observeRecipeById(id: Long): Flow<Recipe?>
+
     @Query(
         """
         SELECT * FROM recipes 
@@ -36,6 +39,9 @@ interface RecipeDao {
 
     @Query("UPDATE recipes SET isFavorite = :isFavorite WHERE id = :id")
     suspend fun updateFavoriteStatus(id: Long, isFavorite: Boolean)
+
+    @Query("UPDATE recipes SET isFavorite = NOT isFavorite WHERE id = :id")
+    suspend fun toggleFavoriteStatus(id: Long)
 
     @Query("SELECT * FROM recipes ORDER BY isFavorite DESC, updatedAt DESC")
     fun getAllRecipesWithFavoriteFirst(): Flow<List<Recipe>>

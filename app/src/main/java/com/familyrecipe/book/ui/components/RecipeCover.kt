@@ -16,16 +16,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import java.io.File
 
 /**
  * 菜谱封面缩略图。
  * 统一处理无封面/文件丢失时的占位展示，供列表页、随机选菜页等复用。
- *
- * @param coverImagePath 封面图片绝对路径，可为 null
- * @param contentDescription 无障碍描述
- * @param size 缩略图边长
+ * 不在组合阶段做 File.exists()，缺失文件由 Coil error/fallback 承接。
  */
 @Composable
 fun RecipeCoverThumb(
@@ -34,22 +31,13 @@ fun RecipeCoverThumb(
     size: Dp = 80.dp,
     modifier: Modifier = Modifier
 ) {
-    val fileExists = coverImagePath != null && File(coverImagePath).exists()
-
     Box(
         modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center
     ) {
-        if (fileExists) {
-            AsyncImage(
-                model = File(coverImagePath!!),
-                contentDescription = contentDescription,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
+        val placeholder = @Composable {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -63,6 +51,19 @@ fun RecipeCoverThumb(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+
+        if (coverImagePath.isNullOrBlank()) {
+            placeholder()
+        } else {
+            SubcomposeAsyncImage(
+                model = File(coverImagePath),
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                loading = { placeholder() },
+                error = { placeholder() }
+            )
         }
     }
 }

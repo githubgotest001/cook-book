@@ -13,7 +13,10 @@ import com.familyrecipe.book.data.repository.RecipeRepository
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -34,48 +37,40 @@ class RecipeDetailViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val recipeId: Long = savedStateHandle.get<Long>("recipeId") ?: 0L
-
-    private val _uiState = MutableStateFlow(RecipeDetailUiState())
-    val uiState: StateFlow<RecipeDetailUiState> = _uiState.asStateFlow()
-
     private val gson = Gson()
 
-    init {
-        loadData()
-    }
-
-    private fun loadData() {
-        viewModelScope.launch {
-            val recipe = recipeRepository.getRecipeById(recipeId)
-            if (recipe != null) {
-                val steps: List<String> = try {
-                    gson.fromJson(recipe.stepsJson, object : TypeToken<List<String>>() {}.type)
-                } catch (e: Exception) {
-                    if (recipe.stepsJson.isNotBlank()) listOf(recipe.stepsJson) else emptyList()
-                }
-                _uiState.update { it.copy(recipe = recipe, steps = steps) }
-            }
-            _uiState.update { it.copy(isLoading = false) }
-        }
-
-        viewModelScope.launch {
-            memberRepository.getAllMembers().collect { members ->
-                _uiState.update { it.copy(members = members) }
+    /**
+     * 观察式加载：编辑页返回后同一 ViewModel 仍在，Flow 会自动刷新菜谱主体。
+     */
+    val uiState: StateFlow<RecipeDetailUiState> = combine(
+        recipeRepository.observeRecipeById(recipeId),
+        recipeRepository.getIngredientsForRecipe(recipeId),
+        recipeRepository.getPreferencesForRecipe(recipeId),
+        memberRepository.getAllMembers()
+    ) { recipe, ingredients, preferences, members ->
+        val steps: List<String> = if (recipe == null) {
+            emptyList()
+        } else {
+            try {
+                gson.fromJson(recipe.stepsJson, object : TypeToken<List<String>>() {}.type)
+                    ?: emptyList()
+            } catch (_: Exception) {
+                if (recipe.stepsJson.isNotBlank()) listOf(recipe.stepsJson) else emptyList()
             }
         }
-
-        viewModelScope.launch {
-            recipeRepository.getPreferencesForRecipe(recipeId).collect { prefs ->
-                _uiState.update { it.copy(preferences = prefs) }
-            }
-        }
-
-        viewModelScope.launch {
-            recipeRepository.getIngredientsForRecipe(recipeId).collect { ingredients ->
-                _uiState.update { it.copy(ingredients = ingredients) }
-            }
-        }
-    }
+        RecipeDetailUiState(
+            recipe = recipe,
+            steps = steps,
+            ingredients = ingredients,
+            members = members,
+            preferences = preferences,
+            isLoading = false
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = RecipeDetailUiState()
+    )
 
     fun setPreference(memberId: Long, preference: Preference) {
         viewModelScope.launch {
@@ -85,10 +80,8 @@ class RecipeDetailViewModel @Inject constructor(
 
     fun toggleFavorite() {
         viewModelScope.launch {
-            val currentRecipe = _uiState.value.recipe ?: return@launch
-            val newFavorite = !currentRecipe.isFavorite
-            recipeRepository.updateFavoriteStatus(currentRecipe.id, newFavorite)
-            _uiState.update { it.copy(recipe = it.recipe?.copy(isFavorite = newFavorite)) }
+            if (uiState.value.recipe == null) return@launch
+            recipeRepository.toggleFavoriteStatus(recipeId)
         }
     }
 

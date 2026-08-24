@@ -1,8 +1,10 @@
 package com.familyrecipe.book.data.repository
 
+import androidx.room.withTransaction
 import com.familyrecipe.book.data.dao.RecipeDao
 import com.familyrecipe.book.data.dao.RecipeIngredientDao
 import com.familyrecipe.book.data.dao.RecipePreferenceDao
+import com.familyrecipe.book.data.database.AppDatabase
 import com.familyrecipe.book.data.model.Preference
 import com.familyrecipe.book.data.model.Recipe
 import com.familyrecipe.book.data.model.RecipeCategory
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 class RecipeRepository(
+    private val database: AppDatabase,
     private val recipeDao: RecipeDao,
     private val preferenceDao: RecipePreferenceDao,
     private val ingredientDao: RecipeIngredientDao
@@ -28,6 +31,8 @@ class RecipeRepository(
     fun searchRecipes(query: String): Flow<List<Recipe>> = recipeDao.searchRecipes(query)
 
     suspend fun getRecipeById(id: Long): Recipe? = recipeDao.getRecipeById(id)
+
+    fun observeRecipeById(id: Long): Flow<Recipe?> = recipeDao.observeRecipeById(id)
 
     suspend fun insertRecipe(recipe: Recipe): Long = recipeDao.insertRecipe(recipe)
 
@@ -40,30 +45,32 @@ class RecipeRepository(
         if (recipeIds.isEmpty()) flowOf(emptyList()) else ingredientDao.getIngredientsForRecipes(recipeIds)
 
     suspend fun saveRecipeWithIngredients(recipe: Recipe, ingredients: List<RecipeIngredient>): Long {
-        val recipeId = if (recipe.id == 0L) {
-            recipeDao.insertRecipe(recipe)
-        } else {
-            recipeDao.updateRecipe(recipe)
-            recipe.id
-        }
-        ingredientDao.deleteIngredientsForRecipe(recipeId)
-        val normalized = ingredients
-            .filter { it.name.isNotBlank() }
-            .mapIndexed { index, ingredient ->
-                ingredient.copy(
-                    id = 0,
-                    recipeId = recipeId,
-                    name = ingredient.name.trim(),
-                    amount = ingredient.amount.trim(),
-                    unit = ingredient.unit.trim(),
-                    note = ingredient.note.trim(),
-                    displayOrder = index
-                )
+        return database.withTransaction {
+            val recipeId = if (recipe.id == 0L) {
+                recipeDao.insertRecipe(recipe)
+            } else {
+                recipeDao.updateRecipe(recipe)
+                recipe.id
             }
-        if (normalized.isNotEmpty()) {
-            ingredientDao.insertIngredients(normalized)
+            ingredientDao.deleteIngredientsForRecipe(recipeId)
+            val normalized = ingredients
+                .filter { it.name.isNotBlank() }
+                .mapIndexed { index, ingredient ->
+                    ingredient.copy(
+                        id = 0,
+                        recipeId = recipeId,
+                        name = ingredient.name.trim(),
+                        amount = ingredient.amount.trim(),
+                        unit = ingredient.unit.trim(),
+                        note = ingredient.note.trim(),
+                        displayOrder = index
+                    )
+                }
+            if (normalized.isNotEmpty()) {
+                ingredientDao.insertIngredients(normalized)
+            }
+            recipeId
         }
-        return recipeId
     }
 
     /**
@@ -108,6 +115,11 @@ class RecipeRepository(
      */
     suspend fun updateFavoriteStatus(id: Long, isFavorite: Boolean) {
         recipeDao.updateFavoriteStatus(id, isFavorite)
+    }
+
+    /** 原子切换收藏，避免读改写竞态。 */
+    suspend fun toggleFavoriteStatus(id: Long) {
+        recipeDao.toggleFavoriteStatus(id)
     }
 
     /**

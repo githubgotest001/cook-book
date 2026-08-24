@@ -76,8 +76,16 @@ fun RecipeEditScreen(
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success: Boolean ->
+        val capturedUri = cameraImageUri
         if (success) {
-            cameraImageUri?.let { viewModel.onImageSelected(Uri.parse(it)) }
+            capturedUri?.let { viewModel.onImageSelected(Uri.parse(it)) }
+        }
+        // 拍照临时文件已复制进应用私有目录后删除，避免 cache 泄漏
+        capturedUri?.let { uriString ->
+            runCatching {
+                val path = Uri.parse(uriString).path
+                if (path != null) File(path).delete()
+            }
         }
         cameraImageUri = null
     }
