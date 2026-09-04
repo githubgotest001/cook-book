@@ -275,6 +275,8 @@ git tag v1.2.0
 git push github v1.2.0
 ```
 
+若 tag 已经存在、只需补传 APK：Actions → **Android Release** → **Run workflow**，填入 tag（如 `v1.2.0`）。
+
 未配置 Release 密钥时，发布的是 debug 签名 APK（文件名带 `-debug`）。要让用户覆盖安装升级，请把同一份 `release-key.jks` 配进仓库 Secrets：
 
 1. 生成纯 Base64（不要用 `certutil`，它会带证书头）：
@@ -313,7 +315,7 @@ base64 -i release-key.jks | pbcopy
 - ShoppingListViewModel 购物清单交互测试（勾选/合并/已购/清空）
 - RandomPickViewModel 随机选菜测试（默认数量/分类过滤/不足警告）
 
-每次 push / PR 会由 GitHub Actions 自动执行 `test` 与 `assembleDebug`（见 `.github/workflows/android-ci.yml`）。推送 `v*` tag 时由 `.github/workflows/android-release.yml` 打包 APK 并创建 GitHub Release。
+每次 push / PR 会由 GitHub Actions 自动执行 `test` 与 `assembleDebug`，并把 debug APK 上传为 Actions artifact（见 `.github/workflows/android-ci.yml`）。推送 `v*` tag 或手动运行 **Android Release** 时，由 `.github/workflows/android-release.yml` 打包 APK 并挂到 GitHub Release。
 
 ## 备份与恢复说明
 
