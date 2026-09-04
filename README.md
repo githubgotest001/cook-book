@@ -239,58 +239,65 @@ RecipePreference (喜好关联，复合主键)
 
 ### 方式三：签名 Release APK（正式发布）
 
-1. 生成签名密钥（首次）：
+签名配置已写在 `app/build.gradle.kts`：本地读 `local.properties`，CI 读环境变量。未配置密钥时 `assembleRelease` 不会签名。
+
+1. 生成签名密钥（首次，密钥文件不要提交到 Git）：
 
 ```bash
 keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias family-recipe
 ```
 
-2. 在项目根目录创建 `local.properties`（不要提交到 Git）：
+2. 在项目根目录的 `local.properties` 中追加（不要提交到 Git）：
 
 ```properties
-RELEASE_STORE_FILE=../release-key.jks
+RELEASE_STORE_FILE=release-key.jks
 RELEASE_STORE_PASSWORD=你的密码
 RELEASE_KEY_ALIAS=family-recipe
 RELEASE_KEY_PASSWORD=你的密码
 ```
 
-3. 在 `app/build.gradle.kts` 中添加签名配置：
-
-```kotlin
-android {
-    signingConfigs {
-        create("release") {
-            val props = rootProject.file("local.properties")
-                .readLines().associate {
-                    val (k, v) = it.split("=", limit = 2)
-                    k.trim() to v.trim()
-                }
-            storeFile = file(props["RELEASE_STORE_FILE"]!!)
-            storePassword = props["RELEASE_STORE_PASSWORD"]
-            keyAlias = props["RELEASE_KEY_ALIAS"]
-            keyPassword = props["RELEASE_KEY_PASSWORD"]
-        }
-    }
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
-}
-```
-
-4. 打包：
+3. 打包：
 
 ```bash
 ./gradlew assembleRelease
 
 # 输出路径：app/build/outputs/apk/release/app-release.apk
 ```
+
+## GitHub 自动发版
+
+推送符合 `v*` 的 tag 后，[Android Release](.github/workflows/android-release.yml) 会跑测试、打包 APK，并创建 [GitHub Release](https://github.com/githubgotest001/cook-book/releases) 供他人下载。
+
+```bash
+# 1. 确认 versionName / versionCode 已更新，并已推到 main
+# 2. 打 tag 并推送（会触发自动发版）
+git tag v1.2.0
+git push github v1.2.0
+```
+
+未配置 Release 密钥时，发布的是 debug 签名 APK（文件名带 `-debug`）。要让用户覆盖安装升级，请把同一份 `release-key.jks` 配进仓库 Secrets：
+
+1. 生成纯 Base64（不要用 `certutil`，它会带证书头）：
+
+```powershell
+# Windows PowerShell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("release-key.jks")) | Set-Clipboard
+```
+
+```bash
+# Linux
+base64 -w0 release-key.jks
+
+# macOS
+base64 -i release-key.jks | pbcopy
+```
+2. 仓库 **Settings → Secrets and variables → Actions** 添加：
+   - `RELEASE_KEYSTORE_BASE64`
+   - `RELEASE_STORE_PASSWORD`
+   - `RELEASE_KEY_ALIAS`（如 `family-recipe`）
+   - `RELEASE_KEY_PASSWORD`
+
+之后再推 tag，Release 会挂上正式签名的 `family-recipe-vX.Y.Z.apk`。
 
 ## 测试
 
@@ -306,7 +313,7 @@ android {
 - ShoppingListViewModel 购物清单交互测试（勾选/合并/已购/清空）
 - RandomPickViewModel 随机选菜测试（默认数量/分类过滤/不足警告）
 
-每次 push / PR 会由 GitHub Actions 自动执行 `test` 与 `assembleDebug`（见 `.github/workflows/android-ci.yml`）。
+每次 push / PR 会由 GitHub Actions 自动执行 `test` 与 `assembleDebug`（见 `.github/workflows/android-ci.yml`）。推送 `v*` tag 时由 `.github/workflows/android-release.yml` 打包 APK 并创建 GitHub Release。
 
 ## 备份与恢复说明
 

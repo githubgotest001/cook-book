@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +7,36 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
 }
+
+fun signingProperty(name: String): String? {
+    System.getenv(name)?.takeIf { it.isNotBlank() }?.let { return it }
+    val local = rootProject.file("local.properties")
+    if (!local.exists()) return null
+    return local.readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
+        .associate {
+            val (k, v) = it.split("=", limit = 2)
+            k.trim() to v.trim()
+        }[name]
+        ?.takeIf { it.isNotBlank() }
+}
+
+fun resolveStoreFile(path: String): File {
+    val file = File(path)
+    return if (file.isAbsolute) file else rootProject.file(path)
+}
+
+val releaseStoreFile = signingProperty("RELEASE_STORE_FILE")
+val releaseStorePassword = signingProperty("RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = signingProperty("RELEASE_KEY_ALIAS")
+val releaseKeyPassword = signingProperty("RELEASE_KEY_PASSWORD")
+val hasReleaseSigning = listOf(
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.familyrecipe.book"
@@ -18,6 +50,17 @@ android {
         versionName = "1.2.0"
     }
 
+    if (hasReleaseSigning) {
+        signingConfigs {
+            create("release") {
+                storeFile = resolveStoreFile(releaseStoreFile!!)
+                storePassword = releaseStorePassword!!
+                keyAlias = releaseKeyAlias!!
+                keyPassword = releaseKeyPassword!!
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -25,6 +68,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
